@@ -1,0 +1,9 @@
+Exported text prefix: PKA-CONFIG-1:pVZNb9s4EP0vPKuAn
+Summary: { includesRoute: false, routeName: '', waypoints: 0 }
+Inspected: { includesRoute: false, routeName: '', waypoints: 0 }
+Merged config keys: [
+  'scripts', 'target',
+  'healer',  'walker',
+  'looting', 'alerts',
+  'hoenn',   'tools'
+]

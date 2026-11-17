@@ -1,0 +1,6 @@
+module=walktrace_host.exe
+rva=1000
+max_events=10
+max_seconds=9
+out=.\walktrace_transit_delayed_5136.json
+threads=18916,19272,19940

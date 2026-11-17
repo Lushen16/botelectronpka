@@ -3,7 +3,7 @@
 const { EventEmitter } = require('node:events');
 const { execFile } = require('node:child_process');
 const path = require('node:path');
-const { createWalkerEngine } = require('./engines/walker-engine.cjs');
+const { createWalkerEngine, STEP_INTERVAL_MS } = require('./engines/walker-engine.cjs');
 
 function positionIssue(session, pid, playerName, now = Date.now()) {
   const age = now - Date.parse(session?.generatedAt);
@@ -11,7 +11,11 @@ function positionIssue(session, pid, playerName, now = Date.now()) {
   if (!session || session.pid !== pid || session.source !== 'rpm') return 'Sessao RPM de outro cliente ou ausente.';
   if (!session.online || session.stale || session.error || !Number.isFinite(age) || age < 0 || age > 1000) return 'Posicao RPM desatualizada.';
   const observedName = session.telemetry?.playerName;
-  const expectedName = playerName || (session.clientWindowTitle === 'PokeAlliance - ' + observedName ? observedName : '');
+  // O launcher nomeia a janela "PokeAlliance - <nome>"; cliente aberto direto
+  // mantem "PokeAlliance". Nos dois casos o nome observado na telemetria vale.
+  const titled = session.clientWindowTitle === 'PokeAlliance - ' + observedName
+    || session.clientWindowTitle === 'PokeAlliance';
+  const expectedName = playerName || (titled ? observedName : '');
   if (!expectedName || observedName?.trim().toLowerCase() !== expectedName.trim().toLowerCase()) return 'Nome do jogador RPM divergente; configure PKA_PLAYER_NAME.';
   if (!pos || ![pos.x, pos.y, pos.z].every(Number.isInteger) || pos.x < 0 || pos.x >= 65535
       || pos.y < 0 || pos.y >= 65535 || pos.z < 0 || pos.z > 15) return 'Posicao RPM invalida.';
@@ -74,7 +78,8 @@ class WalkerInputRuntime extends EventEmitter {
     this.timer = null;
     this.inFlight = null;
     this.epoch = 0;
-    this.lastDispatch = -Infinity;
+    this.lastKeyDispatch = -Infinity;
+    this.lastMovementDispatch = -Infinity;
     this.lastSnapshotAt = null;
     this.allowedActions = options.allowedActions || ['walk', 'wait'];
   }
@@ -87,10 +92,13 @@ class WalkerInputRuntime extends EventEmitter {
   }
 
   get state() {
+    const index = this.engine?.state.index || 0;
+    const waypoint = this.engine ? this.engine.waypoints()[index] : null;
     return { modules: [...this.modules], pid: this.pid, paused: this.paused, backend: 'keyboard-rpm',
       status: this.last?.status || 'idle', error: this.last?.error || null,
       phase: this.last?.error || (this.paused ? 'Walker teclado pausado' : 'Walker teclado: ' + (this.last?.action || 'aguardando')),
-      phases: {}, walkerIndex: this.engine?.state.index || 0, pausedModules: this.paused ? [...this.modules] : [] };
+      phases: {}, walkerIndex: index, walkerAction: waypoint?.action || null,
+      pausedModules: this.paused ? [...this.modules] : [] };
   }
 
   get connected() { return false; }
@@ -108,8 +116,8 @@ class WalkerInputRuntime extends EventEmitter {
     if (module !== 'walker' || !enabled) throw Error('Target e Healer indisponíveis no modo teclado/RPM: este backend executa somente Walker; falta integrar o backend de combate.');
     await this.pause();
     const epoch = this.epoch;
-    const lastDispatch = this.pid === pid ? this.lastDispatch : -Infinity;
-    if (!Number.isInteger(pid) || pid <= 0) throw Error('Selecione o PID do cliente.');
+    const lastDispatch = this.pid === pid ? this.lastKeyDispatch : -Infinity;
+    const lastMovementDispatch = this.pid === pid ? this.lastMovementDispatch : -Infinity;    if (!Number.isInteger(pid) || pid <= 0) throw Error('Selecione o PID do cliente.');
     const session = this.getSession();
     const issue = positionIssue(session, pid, this.playerName, this.now());
     if (issue) throw Error(issue);
@@ -130,7 +138,17 @@ class WalkerInputRuntime extends EventEmitter {
     this.playerName = playerName;
     this.pid = pid;
     this.engine = engine;
-    this.lastDispatch = lastDispatch;
+    /* `lastDispatch` e `lastMovementDispatch` SOBREVIVEM ao re-inicio de
+     * proposito (contrato original). O throttle de 250 ms e o piso de
+     * cadencia valem entre passos do mesmo personagem, inclusive quando o
+     * Target foi ligado antes do Walker no mesmo PID.
+     *
+     * Zerar aqui fazia o walker despachar no primeiro tick apos
+     * `setModules('walker')` mesmo quando o relogio nao avancou — e o teste
+     * "Adding Walker preserves combat GCD" exige que o GCD do combate seja
+     * preservado nesse arranque. */
+    this.lastKeyDispatch = lastDispatch;
+    this.lastMovementDispatch = lastMovementDispatch;
     this.lastSnapshotAt = null;
     this.last = null;
     this.modules = ['walker'];
@@ -186,7 +204,34 @@ class WalkerInputRuntime extends EventEmitter {
       const session = this.getSession();
       const issue = positionIssue(session, this.pid, this.playerName, this.now());
       if (issue) throw Error(issue);
-      if (this.now() - this.lastDispatch < 250) return null;
+      /* Piso de cadencia do backend teclado. Era 250 ms fixo, mais rapido que
+       * o jogo: medido no cliente real, o Shiba anda 1 tile por ~406 ms
+       * (`STEP_INTERVAL_MS`, ver engines/walker-engine.cjs). O motor aplica o
+       * mesmo piso internamente; aqui ele evita ate' a chamada de `step` e o
+       * spawn do emissor de teclado.
+       *
+       * O valor vem do MOTOR (`engine.stepIntervalMs`), nao da constante: e'
+       * o mesmo numero que `walker.stepIntervalMs` ajustou, e 0 desliga os
+       * dois pisos de uma vez. Usar a constante aqui deixaria o piso ligado
+       * mesmo com a config pedindo 0. */
+      /* DOIS PISOS, com papeis diferentes:
+       *
+       *   1. `lastDispatch` / 250 ms — throttle do BACKEND teclado. Evita
+       *      reenviar a MESMA direcao quando o snapshot nao mudou
+       *      (`lastSnapshotAt`) mas o relogio avancou. Contrato coberto por
+       *      tests/walker_input_runtime.test.cjs ("identical snapshots and the
+       *      250ms throttle").
+       *
+       *   2. `lastMovementDispatch` / `engine.stepIntervalMs` — piso de
+       *      cadencia MEDIDO no cliente real: 406 ms por tile. E' o mesmo
+       *      numero que `walker.stepIntervalMs` ajusta (0 desliga).
+       *
+       * Antes havia so' o (1). Quem removeu trocou por (2), e os testes que
+       * dependem do throttle de 250 ms passaram a despachar. Os dois convivem:
+       * o (1) protege contra amostra repetida, o (2) contra andar mais rapido
+       * que o jogo. */
+      if (this.now() - this.lastKeyDispatch < 250) return null;
+      if (this.now() - this.lastMovementDispatch < this.engine.stepIntervalMs) return null;
       if (session.generatedAt === this.lastSnapshotAt) return null;
       this.lastSnapshotAt = session.generatedAt;
       const events = [];
@@ -199,14 +244,21 @@ class WalkerInputRuntime extends EventEmitter {
         const changed = positionIssue(this.getSession(), this.pid, this.playerName, this.now());
         if (changed) throw Error(changed);
         await this.input(this.pid, event.value);
-        this.lastDispatch = this.now();
+        this.lastMovementDispatch = this.now();
+        /* Só conta como dispatch quando SAI movimento. `wait`/`say`/`done`
+         * nao emitem evento de walk, e nao podem consumir o throttle de
+         * 250 ms — senao um `wait` de 500 ms bloqueia a retomada. */
+        this.lastKeyDispatch = this.now();
       }
       if (epoch !== this.epoch) return null;
       this.last = { ...result, status: 'walking', inputAccepted: events.length > 0, effectVerified: false };
       if (result.action === 'done' || (result.action === 'idle' && this.engine.state.finished)) {
-        this.paused = true;
-        this.modules = [];
-        clearInterval(this.timer);
+        this.modules = this.modules.filter(module => module !== 'walker');
+        if (!this.modules.length) {
+          this.paused = true;
+          clearInterval(this.timer);
+          this.timer = null;
+        }
         this.last.status = 'done';
       }
       this.changed();

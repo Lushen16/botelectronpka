@@ -229,6 +229,18 @@ from creature_identity import TargetMovedError
 with patch('combat_actuator.window_details',return_value=('PokeAlliance - Ash',800,600)), patch('creature_identity.validate_guard',side_effect=TargetMovedError('moved')), patch.object(sys,'argv',['combat_actuator.py','42','--request','{"kind":"attack","x":1,"y":1,"targetGuard":{}}']), patch('combat_actuator.ctypes.WinDLL',side_effect=[user,kernel]), patch('combat_actuator.validate_process'), patch('combat_actuator.find_window',return_value=77):
     outcome = combat.main()
 assert outcome['errorCode'] == 'COMBAT_TARGET_MOVED' and outcome['eventsSent'] == 0
+
+# The actuator, not caller-controlled flags inside the guard, chooses whether
+# validation is positional. Healing validates only player + own identity.
+for request, positional, require_target in [
+    ({'kind':'key', 'key':'F1', 'targetGuard':{}}, False, True),
+    ({'kind':'attack', 'x':1, 'y':1, 'targetGuard':{}}, True, True),
+    ({'kind':'key', 'key':'F3', 'ownGuard':{}}, False, False),
+]:
+    with patch('combat_actuator.window_details', return_value=('PokeAlliance - Ash',800,600)), patch('creature_identity.validate_guard', return_value={}) as guard, patch('walker_input.time.sleep'):
+        combat.dispatch(user,kernel,42,77,request,result())
+        assert guard.call_args.kwargs['positional'] is positional
+        assert guard.call_args.kwargs['require_target'] is require_target
 print('mocked background transport OK')
 `;
   const run = spawnSync(process.env.PKA_PYTHON || 'python', ['-B', '-c', script], {

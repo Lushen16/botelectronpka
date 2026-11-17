@@ -24,13 +24,24 @@ const telemetry = () => ({ schema: 2, nativeVerified: true, pulseVersion: 3, tic
   conditionEvents: true, conditionsKnown: true, conditions: [], roster: [{ slot: 1, uuid: 'uuid', name: 'Charizard', healthPercent: 100, moves: null }],
   creatures: [structuredClone(creature)], items: [], tiles: [] });
 
+/* Declaracao explicita do fixture. R1.5: `supportedCommands` sozinho NAO vira
+ * contrato — o runtime le `capabilities()`. A lista cobre todo o vocabulario
+ * do encoder para que estes testes exercitem os motores, nao a compatibilidade
+ * (que tem suite propria em tests/capabilities.test.cjs). */
+const FIXTURE_DECLARATION = Object.freeze({
+  contract: 'pka-capabilities', version: 1, server: 'engine-runtime-fixture',
+  commands: Object.keys(COMMANDS),
+});
+
 function fixture(options = {}) {
   let timestamp = 10000;
   const commands = [];
   const pauses = [];
   let session = { pid: 10, online: true, ageMs: 0, telemetry: telemetry() };
   const adapter = Object.assign(new EventEmitter(), {
-    supportedCommands: Object.keys(COMMANDS), getSnapshot: () => structuredClone(session),
+    supportedCommands: [...FIXTURE_DECLARATION.commands],
+    capabilities: () => require('../reconstruction/capabilities.cjs').parseDeclaration(FIXTURE_DECLARATION),
+    getSnapshot: () => structuredClone(session),
     command: async (name, parameter) => { commands.push({ name, parameter, at: timestamp }); return true; },
     pauseWalker: async value => { pauses.push(value); return true; },
     close: async () => {},
@@ -196,11 +207,75 @@ test('stale target telemetry cancels the previously commanded attack once', asyn
 });
 
 test('an unsupported command invalidates the entire batch before any command is sent', async () => {
+  /* O lote e' validado ANTES do primeiro envio: se algum comando do tick nao
+   * estiver declarado pelo servidor, nada sai — nem os anteriores. */
   const item = fixture();
-  item.adapter.supportedCommands = ['attack'];
   await item.runtime.setModules('target', true, 10, item.config);
-  assert.equal((await item.runtime.tick()).status, 'error');
+  /* Declaracao encolhe depois da partida: simula servidor que deixou de
+   * anunciar um comando que o motor ainda emite. */
+  item.adapter.supportedCommands.length = 0;
+  item.adapter.supportedCommands.push('attack', 'talk', 'stop');
+  item.sessionValue.telemetry.healthPercent = 20; // forca hotkey no lote
+  await item.runtime.tick();
+  assert.deepEqual(item.commands, [], 'nenhum comando do lote pode sair');
+});
+
+test('a capability-missing startup is refused before any automation command', async () => {
+  const item = fixture();
+  /* Target exige attack + stop; sem `stop` a partida e' recusada. */
+  item.adapter.capabilities = () => require('../reconstruction/capabilities.cjs')
+    .parseDeclaration({ contract: 'pka-capabilities', version: 1, commands: ['attack'] });
+  item.adapter.supportedCommands.length = 0;
+  item.adapter.supportedCommands.push('attack');
+  const state = await item.runtime.setModules('target', true, 10, item.config);
+  assert.equal(state.status, 'blocked');
+  assert.equal(state.reason, 'capability-missing');
+  assert.match(state.error, /stop/);
   assert.deepEqual(item.commands, []);
+  assert.deepEqual(item.runtime.modules, [], 'nenhum modulo sobe incompativel');
+  assert.equal(item.runtime.state.paused, true);
+});
+
+test('a walk-only server without stop never starts movement', async () => {
+  const item = fixture();
+  item.adapter.capabilities = () => require('../reconstruction/capabilities.cjs')
+    .parseDeclaration({ contract: 'pka-capabilities', version: 1, commands: ['walk', 'talk'] });
+  item.adapter.supportedCommands.length = 0;
+  item.adapter.supportedCommands.push('walk', 'talk');
+  const state = await item.runtime.setModules('walker', true, 10, item.config);
+  assert.equal(state.status, 'blocked');
+  assert.match(state.error, /stop/);
+  assert.deepEqual(item.commands, []);
+  assert.deepEqual(item.runtime.modules, []);
+});
+
+test('a joint target+walker request is refused whole, not partially started', async () => {
+  const item = fixture();
+  /* `talk` presente, `stop` ausente: target e walker exigem stop. */
+  item.adapter.capabilities = () => require('../reconstruction/capabilities.cjs')
+    .parseDeclaration({ contract: 'pka-capabilities', version: 1,
+      commands: ['attack', 'talk', 'walk', 'hotkey', 'combo', 'switchPokemon', 'potion'] });
+  item.adapter.supportedCommands.length = 0;
+  item.adapter.supportedCommands.push('attack', 'talk', 'walk', 'hotkey', 'combo', 'switchPokemon', 'potion');
+  const config = { ...item.config, walker: { waypoints: [{ action: 'walk', pos: { x: 105, y: 100, z: 7 } }] } };
+  const state = await item.runtime.setModules('all', true, 10, config);
+  assert.equal(state.status, 'blocked');
+  assert.deepEqual(item.runtime.modules, [], 'nao sobe so o Walker');
+  assert.deepEqual(item.commands, [], 'nenhum comando de automacao');
+  assert.match(state.error, /stop/);
+});
+
+test('the same walker alone starts when the joint request was refused', async () => {
+  const item = fixture();
+  item.adapter.capabilities = () => require('../reconstruction/capabilities.cjs')
+    .parseDeclaration({ contract: 'pka-capabilities', version: 1, commands: ['walk', 'stop'] });
+  item.adapter.supportedCommands.length = 0;
+  item.adapter.supportedCommands.push('walk', 'stop');
+  const config = { ...item.config, walker: { waypoints: [{ action: 'walk', pos: { x: 105, y: 100, z: 7 } }] } };
+  const state = await item.runtime.setModules('walker', true, 10, config);
+  assert.deepEqual(item.runtime.modules, ['walker'], 'Walker isolado compativel sobe');
+  assert.notEqual(state.status, 'blocked');
+  assert.notEqual(state.paused, true);
 });
 
 test('overlapping ticks do not duplicate commands and pause cancels the rest of a batch', async () => {
@@ -316,6 +391,12 @@ test('native adapter combines state HP and telemetry and rejects nonzero ACK sta
   let now = 10000;
   const adapter = await open({ pid: 10 }, { transport, now: () => now });
   assert.equal(adapter.getSnapshot(), null);
+  /* Sem declaracao no transporte, nenhum comando e' habilitado. */
+  assert.deepEqual(adapter.supportedCommands, []);
+  await assert.rejects(adapter.command('attack', 12), /Comando sem suporte/);
+  transport.emit('declaration', { contract: 'pka-capabilities', version: 1,
+    commands: ['walk', 'attack', 'stop', 'talk', 'combo', 'switchPokemon', 'potion', 'hotkey'] });
+  assert.ok(adapter.supportedCommands.includes('attack'));
   transport.emit('state', { online: true, healthPercent: 37 });
   transport.emit('telemetry', telemetry());
   assert.equal(adapter.getSnapshot().telemetry.healthPercent, 37);
@@ -326,13 +407,89 @@ test('native adapter combines state HP and telemetry and rejects nonzero ACK sta
   await adapter.close();
 });
 
+test('capabilities do not survive a reconnection', async () => {
+  const transport = Object.assign(new EventEmitter(), {
+    connect: async () => {}, close: () => {}, sendCommand: async () => ({ status: 0 }),
+  });
+  const first = await open({ pid: 10 }, { transport, now: () => 10000 });
+  transport.emit('declaration', { contract: 'pka-capabilities', version: 1,
+    commands: ['walk', 'attack', 'stop', 'talk', 'combo', 'switchPokemon', 'potion', 'hotkey'] });
+  assert.equal(first.supportedCommands.length, 8);
+  await first.close();
+  const second = await open({ pid: 10 }, { transport, now: () => 10000 });
+  assert.deepEqual(second.supportedCommands, [], 'sessao nova nao herda capacidades');
+  await second.close();
+});
+
+test('a declaration received after connect is not lost', async () => {
+  /* kind 6 pode chegar DEPOIS do welcome. O adapter espera de forma limitada
+   * e passa a habilitar o que foi declarado. */
+  const transport = Object.assign(new EventEmitter(), {
+    connect: async () => {}, close: () => {}, sendCommand: async () => ({ status: 0 }),
+  });
+  const pending = open({ pid: 10 }, { transport, now: () => 10000, capabilityTimeoutMs: 500 });
+  setImmediate(() => transport.emit('declaration', { contract: 'pka-capabilities', version: 1,
+    commands: ['walk', 'attack'] }));
+  const adapter = await pending;
+  assert.deepEqual(adapter.supportedCommands, ['walk', 'attack']);
+  await adapter.close();
+});
+
+test('an unknown contract declaration grants no command', async () => {
+  const transport = Object.assign(new EventEmitter(), {
+    connect: async () => {}, close: () => {}, sendCommand: async () => ({ status: 0 }),
+  });
+  const adapter = await open({ pid: 10 }, { transport, now: () => 10000 });
+  transport.emit('declaration', { contract: 'fornecedor-x', version: 9, commands: ['walk', 'chase'] });
+  assert.deepEqual(adapter.supportedCommands, []);
+  assert.equal(adapter.capabilities().state, 'unknown');
+  await assert.rejects(adapter.command('walk', 0), /Comando sem suporte/);
+  await adapter.close();
+});
+
+test('ack status 4 of our contract is diagnosed as unsupported', async () => {
+  const transport = Object.assign(new EventEmitter(), {
+    connect: async () => {}, close: () => {}, sendCommand: async () => ({ status: 4 }),
+  });
+  const adapter = await open({ pid: 10 }, { transport, now: () => 10000 });
+  transport.emit('declaration', { contract: 'pka-capabilities', version: 1,
+    commands: ['walk', 'attack', 'stop', 'talk', 'combo', 'switchPokemon', 'potion', 'hotkey'] });
+  const error = await adapter.command('attack', 12).then(() => null, value => value);
+  assert.ok(error instanceof Error);
+  assert.equal(error.statusCode, 4);
+  assert.equal(error.statusInterpreted, true);
+  assert.match(error.message, /nao suportada/, 'nao deve dizer "identidade do Pokemon mudou"');
+  await adapter.close();
+});
+
+test('an unknown contract keeps the raw ack code with a neutral message', async () => {
+  const transport = Object.assign(new EventEmitter(), {
+    connect: async () => {}, close: () => {}, sendCommand: async () => ({ status: 4 }),
+  });
+  const adapter = await open({ pid: 10 }, { transport, now: () => 10000 });
+  transport.emit('declaration', { contract: 'desconhecido', version: 1, commands: ['attack'] });
+  /* Contrato desconhecido nao habilita nada; forcamos a lista para exercitar
+   * apenas a MENSAGEM do ACK. */
+  adapter.supportedCommands.push('attack');
+  const error = await adapter.command('attack', 12).then(() => null, value => value);
+  assert.equal(error.statusCode, 4);
+  assert.equal(error.statusInterpreted, false);
+  assert.match(error.message, /codigo 4/);
+  await adapter.close();
+});
+
 test('integrated engine exchanges actual protocol frames and positive ACKs with a local fixture server', async () => {
   const pid = 52000 + (process.pid % 1000);
   const key = 'engine-runtime-test-fixture';
-  const server = new RuntimeServer({ pid, key });
+  /* Fixture de TRANSPORTE (auto-ACK generico): prova framing e ACK, nao
+   * implementacao de comando. A declaracao existe para o adapter habilitar os
+   * comandos que o motor emite. */
+  const declaration = { contract: 'pka-capabilities', version: 1, server: 'fixture',
+    commands: ['walk', 'attack', 'stop', 'talk', 'combo', 'switchPokemon', 'potion', 'hotkey'] };
+  const server = new RuntimeServer({ pid, key, declaration });
   const transport = new Transport({ pid, key });
   const runtime = new EngineRuntime({ automatic: false,
-    openAdapter: context => open(context, { transport }) });
+    openAdapter: context => open(context, { transport, capabilityTimeoutMs: 2000 }) });
   await server.start();
   try {
     await runtime.setModules('target', true, pid, configuration());

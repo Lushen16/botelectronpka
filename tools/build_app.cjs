@@ -42,10 +42,29 @@ for (const entry of entries) {
 }
 const api = fs.readFileSync(path.join(root, 'reconstruction/renderer-api.cjs'), 'utf8');
 const diagnosticsApi = fs.readFileSync(path.join(root, 'reconstruction/diagnostics-api.cjs'), 'utf8');
+// Renderer files superseded by the 3.3.1 extraction. The 3.1.9 ASAR copy of
+// alert-audio.js has neither window.PkaModuleAudio (app.js calls it unguarded on
+// pka:module-sound) nor the {repeat} option app.js passes to play(). Override wins
+// over both the ASAR bytes and any preserved local copy.
+const overrides = { 'alert-audio.js': 'extracted_v3.3.1/renderer/alert-audio.js' };
+for (const [target, source] of Object.entries(overrides)) {
+  const sourcePath = path.join(root, source);
+  if (!fs.existsSync(sourcePath)) continue;
+  const bytes = fs.readFileSync(sourcePath);
+  const sha256 = crypto.createHash('sha256').update(bytes).digest('hex');
+  fs.writeFileSync(path.join(app, 'ui', target), bytes);
+  const record = files.find(file => file.path === target);
+  const entry = { path: target, original: source, sha256, original_sha256: record?.original_sha256 ?? null,
+    preserved: false };
+  if (record) Object.assign(record, entry); else files.push(entry);
+}
 // Local, non-ASAR overlays that must stay published (e.g. the simulation toggle).
-for (const extra of ['sim.js']) {
+// config-sharing.js is a 3.3.1 renderer file with no 3.1.9 ASAR counterpart; app.js
+// requires window.PkaConfigShareUI.create, so it must be served by the pka:// handler.
+for (const extra of ['sim.js', 'config-sharing.js']) {
   const overlay = path.join(app, 'ui', extra);
   if (!fs.existsSync(overlay)) continue;
+  if (files.some(file => file.path === extra)) continue;
   files.push({ path: extra, original: null, preserved: true,
     sha256: crypto.createHash('sha256').update(fs.readFileSync(overlay)).digest('hex'),
     original_sha256: null });

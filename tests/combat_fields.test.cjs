@@ -186,3 +186,182 @@ test('RPM combat readiness skips Medicine, PokeStop and Revive requirements the 
     assert.ok(nativeIssues.some(issue => issue.path === issuePath));
   }
 });
+
+/**
+ * PokeStop medido no Shiba (`native/pka_tap_572.jsonl`, 351,8 MB):
+ *   ordem real: Best Tile -> Aguardando PokeStop -> Perfect lure -> AutoCombo
+ *   `PokeStop sem confirmacao apos quatro tentativas` x336.531
+ *   fase dura 1.375 ms de mediana
+ * Ele NAO trava a hunt: 4 tentativas e segue.
+ */
+test('PokeStop is sent before the combo, up to 4 attempts, then the flow continues', () => {
+  const engine = createTargetEngine({ target: {
+    combo: { enabled: true, useNativeSequence: true, usePokeStop: true, sequenceText: 'm5' },
+  } });
+  const recorder = createRecorder();
+  const t = telemetry();
+  const pokeStops = () => recorder.events.filter(e => e.parameter === '!pokestop').length;
+
+  engine.step(t, recorder, 0);
+  assert.equal(recorder.events[0].name, 'attack', 'ataca antes de qualquer talk');
+  assert.equal(pokeStops(), 1, 'manda !pokestop antes do combo');
+
+  engine.step(t, recorder, 400);
+  assert.equal(pokeStops(), 2, 'respeita o intervalo de retry');
+  engine.step(t, recorder, 800);
+  assert.equal(pokeStops(), 3);
+  engine.step(t, recorder, 1200);
+  assert.equal(pokeStops(), 4);
+
+  engine.step(t, recorder, 1600);
+  assert.equal(pokeStops(), 4, 'nao passa de 4 tentativas');
+  assert.ok(recorder.events.some(e => e.parameter === '!autocombo'),
+    'depois das 4 tentativas o combo sai normalmente');
+});
+
+test('PokeStop is skipped when usePokeStop is off', () => {
+  const engine = createTargetEngine({ target: {
+    combo: { enabled: true, useNativeSequence: true, usePokeStop: false, sequenceText: 'm5' },
+  } });
+  const recorder = createRecorder();
+  engine.step(telemetry(), recorder, 0);
+  assert.equal(recorder.events.filter(e => e.parameter === '!pokestop').length, 0);
+  assert.ok(recorder.events.some(e => e.parameter === '!autocombo'));
+});
+
+/**
+ * Best Tile medido no Shiba (`native/pka_tap_572.jsonl`, 351,8 MB):
+ *   ordem real: Best Tile -> Aguardando PokeStop -> Perfect lure -> AutoCombo
+ *   `Best Tile: limite de ajuste atingido; seguindo o fluxo de seguranca do Lua` x20.706
+ *   prazos do default_config.json: bestTileMaxWaitMs 2500, bestTileRetryMs 700
+ * Ele NAO trava a hunt: estoura o prazo e segue o fluxo.
+ */
+function bestTileFixture(hoenn) {
+  const engine = createTargetEngine({
+    target: { monsters: [{ name: 'Rat', range: 12 }],
+      combo: { enabled: true, useNativeSequence: true, usePokeStop: false, sequenceText: 'm5' } },
+    hoenn,
+  });
+  /* Alvo a 10 tiles do centro da box: fora de `bestTileRange` (4). */
+  const t = telemetry({ ownPokemon: { pos: { x: 100, y: 100, z: 7 } },
+    creatures: [{ id: 7, name: 'Rat', pos: { x: 110, y: 100, z: 7 }, healthPercent: 100, canAttack: true }] });
+  const value = { engine, t, recorder: createRecorder() };
+  value.combos = () => value.recorder.events.filter(e => e.parameter === '!autocombo').length;
+  return value;
+}
+
+test('Best Tile waits for the target to reach the best tile and gives up after bestTileMaxWaitMs', () => {
+  const { engine, t, recorder, combos } = bestTileFixture({ bestTile: true });
+  assert.equal(engine.step(t, recorder, 0).reason, 'best-tile-wait');
+
+  /* Nada de combo durante a espera: 700 ms e' so' o intervalo de reavaliacao. */
+  assert.equal(engine.step(t, recorder, 700).reason, 'best-tile-wait');
+  assert.equal(engine.step(t, recorder, 1400).reason, 'best-tile-wait');
+  assert.equal(engine.step(t, recorder, 2100).reason, 'best-tile-wait');
+  assert.equal(combos(), 0, 'nao comba antes do teto de ajuste');
+
+  /* Teto de 2500 ms atingido: segue o fluxo de seguranca. */
+  const timeout = engine.step(t, recorder, 2500);
+  assert.equal(timeout.reason, 'best-tile-timeout');
+  assert.equal(timeout.action, 'combat');
+  assert.equal(combos(), 0, 'o proprio tick do estouro ainda nao comba');
+
+  /* E o fluxo segue normalmente no tick seguinte, sem voltar a esperar. */
+  assert.notEqual(engine.step(t, recorder, 2600).reason, 'best-tile-wait');
+  assert.equal(combos(), 1, 'depois do teto o combo sai');
+});
+
+test('Best Tile does not wait at all when hoenn.bestTile is off', () => {
+  const { engine, t, recorder, combos } = bestTileFixture({ bestTile: false });
+  assert.notEqual(engine.step(t, recorder, 0).reason, 'best-tile-wait');
+  assert.equal(combos(), 1, 'sem bestTile o alvo longe nao segura o combo');
+});
+
+/**
+ * Pokemon ausente no meio do combo, medido no Shiba (`native/pka_tap_572.jsonl`,
+ * 351,8 MB): `target: Pokemon ausente durante o combo; aguardando recuperacao`
+ * x267.265. Ele espera e retoma do mesmo indice — nao reinicia a sequencia.
+ */
+test('missing Pokemon mid-combo waits for recovery and resumes from the same index', () => {
+  const engine = createTargetEngine({ target: {
+    combo: { enabled: true, useNativeSequence: false, sequenceText: 'm1 m2', stepDelay: 250 },
+  } });
+  const recorder = createRecorder();
+  const t = telemetry();
+
+  assert.equal(engine.step(t, recorder, 0).action, 'combo');
+  assert.equal(recorder.events.at(-1).parameter, 'm1');
+
+  /* A pokebar some: sem `roster` o `rosterUuid()` nao resolve o Pokemon ativo. */
+  const waiting = engine.step({ ...t, roster: [] }, recorder, 250);
+  assert.equal(waiting.reason, 'await-pokemon-recovery');
+  assert.equal(waiting.action, 'combat');
+  assert.equal(engine.state.comboIndex, 1, 'o indice do combo nao voltou a zero');
+  assert.equal(recorder.events.filter(e => e.name === 'talk').length, 1, 'nada de talk na espera');
+
+  /* Pokemon de volta: continua do indice atual, nao recomeca em m1. */
+  const resumed = engine.step(t, recorder, 500);
+  assert.equal(resumed.action, 'combo');
+  assert.equal(recorder.events.at(-1).parameter, 'm2');
+});
+
+test('missing Pokemon before the combo still reports missing-uuid and keeps the index at zero', () => {
+  const engine = createTargetEngine({ target: {
+    combo: { enabled: true, useNativeSequence: false, sequenceText: 'm1 m2', stepDelay: 250 },
+  } });
+  const recorder = createRecorder();
+  const result = engine.step({ ...telemetry(), roster: [] }, recorder, 0);
+  assert.equal(result.reason, 'missing-uuid');
+  assert.deepEqual(result.blocked, ['combo-without-uuid']);
+  assert.equal(engine.state.comboIndex, 0);
+  assert.equal(recorder.events.filter(e => e.name === 'talk').length, 0);
+});
+
+/**
+ * `target.monsters[].movement` está no schema do fornecedor com 4 valores
+ * (chase/stand/kite/random_move), mas só `stand` é honrado — e por acidente:
+ * o combate devolve pauseWalker, então o treinador fica parado.
+ *
+ * Medido em 2026-11-16: `grep kiteRange` em reconstruction/ e botfinal/ não
+ * acha consumo fora de UI e schema. Quem configurar `kite` espera manter
+ * distância e recebe "parado". O aviso existe para não mentir.
+ */
+test('unhonoured movement is reported instead of silently ignored', () => {
+  const context = diagnostics();
+  const session = { source: 'rpm', capabilities: { targetKeyboard: true }, online: true,
+    stale: false, ageMs: 10, telemetry: { nativeVerified: true } };
+
+  for (const movement of ['kite', 'chase', 'random_move']) {
+    const config = context.PkaSchema.createConfig();
+    config.target.combo.enabled = false;
+    config.target.monsters = [{ name: 'Rat*', movement, kiteRange: 2 }];
+    const issues = context.PkaDiagnostics.targetStartIssues(config, session);
+    const achou = issues.find(i => i.path === 'target.monsters.0.movement');
+    assert.ok(achou, 'deve avisar sobre movement=' + movement);
+    assert.match(achou.message, new RegExp(movement, 'u'));
+    assert.match(achou.message, /stand/u, 'deve dizer qual é honrado');
+  }
+});
+
+test('stand and combo-enabled movement produce no warning', () => {
+  const context = diagnostics();
+  const session = { source: 'rpm', capabilities: { targetKeyboard: true }, online: true,
+    stale: false, ageMs: 10, telemetry: { nativeVerified: true } };
+
+  /* `stand` é o valor honrado: nada a avisar. */
+  const comStand = context.PkaSchema.createConfig();
+  comStand.target.combo.enabled = false;
+  comStand.target.monsters = [{ name: 'Rat*', movement: 'stand' }];
+  assert.equal(context.PkaDiagnostics.targetStartIssues(comStand, session)
+    .some(i => i.path === 'target.monsters.0.movement'), false);
+
+  /* Com combo LIGADO o schema diz que `movement` não se aplica, então também
+   * não avisamos — quem manda no posicionamento é o Best Tile / Perfect lure. */
+  const comCombo = context.PkaSchema.createConfig();
+  comCombo.target.combo.enabled = true;
+  comCombo.target.monsters = [{ name: 'Rat*', movement: 'kite' }];
+  assert.equal(context.PkaDiagnostics.targetStartIssues(comCombo, session)
+    .some(i => i.path === 'target.monsters.0.movement'), false);
+});
+
+

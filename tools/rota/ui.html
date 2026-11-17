@@ -1,0 +1,942 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rota &amp; Combate — PokeAlliance</title>
+<style>
+  :root {
+    --bg: #0d1117; --panel: #161b22; --line: #30363d;
+    --fg: #e6edf3; --muted: #8b949e; --accent: #2f81f7;
+    --ok: #3fb950; --warn: #d29922; --bad: #f85149;
+    --tile: #1c2128; --grid: #21262d;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: var(--bg); color: var(--fg);
+    font: 13px/1.45 ui-monospace, "Cascadia Code", Consolas, monospace;
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  header {
+    display: flex; align-items: center; gap: 16px;
+    padding: 8px 14px; border-bottom: 1px solid var(--line);
+    background: var(--panel); flex: 0 0 auto;
+  }
+  header h1 { font-size: 13px; margin: 0; font-weight: 600; letter-spacing: .3px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+  .dot.on { background: var(--ok); box-shadow: 0 0 6px var(--ok); }
+  .dot.err { background: var(--bad); }
+  header .grow { flex: 1; }
+  .stat { color: var(--muted); }
+  .stat b { color: var(--fg); font-weight: 600; }
+
+  main { flex: 1; display: flex; min-height: 0; }
+  #mapwrap { flex: 1; position: relative; min-width: 0; }
+  canvas { display: block; width: 100%; height: 100%; cursor: crosshair; }
+
+  aside {
+    width: 320px; flex: 0 0 320px; border-left: 1px solid var(--line);
+    background: var(--panel); display: flex; flex-direction: column; min-height: 0;
+  }
+  aside section { padding: 10px 12px; border-bottom: 1px solid var(--line); }
+  aside section:last-child { border-bottom: none; }
+  h2 { font-size: 11px; text-transform: uppercase; letter-spacing: .8px;
+       color: var(--muted); margin: 0 0 8px; font-weight: 600; }
+
+  button {
+    font: inherit; background: #21262d; color: var(--fg);
+    border: 1px solid var(--line); border-radius: 6px;
+    padding: 5px 10px; cursor: pointer;
+  }
+  button:hover:not(:disabled) { border-color: var(--accent); }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  button.primary { background: #1f6feb; border-color: #1f6feb; }
+  button.danger { background: #da3633; border-color: #da3633; }
+  button.on { background: #238636; border-color: #238636; }
+
+  .row { display: flex; gap: 6px; flex-wrap: wrap; }
+  .row.tight { gap: 4px; }
+
+  #waypoints { overflow-y: auto; flex: 1; min-height: 60px; }
+  .wp {
+    display: flex; align-items: center; gap: 6px;
+    padding: 4px 6px; border-radius: 5px; margin-bottom: 3px;
+    background: var(--tile); font-size: 12px;
+  }
+  .wp .idx { color: var(--accent); font-weight: 700; width: 18px; }
+  .wp .pos { flex: 1; }
+  .wp .del { padding: 0 5px; line-height: 1.3; }
+  .empty { color: var(--muted); font-size: 12px; padding: 8px 0; }
+
+  .kv { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; font-size: 12px; }
+  .kv dt { color: var(--muted); }
+  .kv dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+
+  #log {
+    height: 110px; overflow-y: auto; font-size: 11px;
+    background: #010409; border-radius: 6px; padding: 6px 8px;
+    border: 1px solid var(--line);
+  }
+  #log div { white-space: pre-wrap; word-break: break-word; }
+  #log .ok { color: var(--ok); }
+  #log .bad { color: var(--bad); }
+  #log .warn { color: var(--warn); }
+  #log .dim { color: var(--muted); }
+
+  label.chk { display: flex; align-items: center; gap: 5px; cursor: pointer; font-size: 12px; }
+  input[type=number] {
+    font: inherit; background: #010409; color: var(--fg);
+    border: 1px solid var(--line); border-radius: 5px; padding: 3px 6px; width: 68px;
+  }
+  .hint { color: var(--muted); font-size: 11px; margin-top: 6px; line-height: 1.4; }
+</style>
+</head>
+<body>
+
+<header>
+  <span class="dot" id="dot"></span>
+  <h1>Rota &amp; Combate</h1>
+  <span class="stat">pid <b id="pid">—</b></span>
+  <span class="stat">canal <b id="chan">—</b></span>
+  <span class="grow"></span>
+  <span class="stat">pos <b id="pos">—</b></span>
+  <span class="stat">hp <b id="hp">—</b></span>
+  <span class="stat">criaturas <b id="ncre">—</b></span>
+  <span class="stat">andar <b id="floor">—</b></span>
+  <span class="stat" id="worldWrap">mundo <b id="world">—</b></span>
+</header>
+
+<main>
+  <div id="mapwrap"><canvas id="map"></canvas></div>
+
+  <aside>
+    <section>
+      <h2>Combate</h2>
+      <div class="row tight">
+        <button id="btnAtkNear" title="Ataca o selvagem mais próximo no MESMO andar">Atacar próximo</button>
+        <button id="btnCombo">Combo</button>
+        <button id="btnPotion" title="Poção (Alt+f, config real)">Poção</button>
+        <button id="btnStop" class="danger">Parar</button>
+      </div>
+      <div class="hint" id="combatHint">Nenhum alvo no seu andar ainda.</div>
+    </section>
+
+    <section>
+      <h2>Executar rota</h2>
+      <div class="row tight">
+        <button id="btnRun" class="primary">▶ Rodar</button>
+        <button id="btnRunOnce">Uma volta</button>
+        <button id="btnPauseRun">⏸</button>
+      </div>
+      <div class="row tight" style="margin-top:6px">
+        <label class="chk"><input type="checkbox" id="optAttack" checked> atacar</label>
+        <label class="chk"><input type="checkbox" id="optHeal" checked> curar</label>
+        <label class="chk"><input type="checkbox" id="optCombo" checked> combo</label>
+      </div>
+      <div class="hint" id="runHint">Rota: 0 waypoints.</div>
+    </section>
+
+    <section>
+      <h2>Waypoints <span style="float:right"><button class="del" id="btnClear">limpar</button></span></h2>
+      <div id="waypoints"><div class="empty">Clique no mapa para adicionar.</div></div>
+    </section>
+
+    <section style="flex:0 0 auto">
+      <h2>Estado</h2>
+      <dl class="kv">
+        <dt>waypoint</dt><dd id="kvWp">—</dd>
+        <dt>status</dt><dd id="kvStatus">—</dd>
+        <dt>comandos</dt><dd id="kvCmds">0</dd>
+        <dt>último</dt><dd id="kvLast">—</dd>
+        <dt>z do alvo</dt><dd id="kvTz">—</dd>
+      </dl>
+    </section>
+
+    <section style="flex:1 1 auto; display:flex; flex-direction:column; min-height:0">
+      <h2>Log</h2>
+      <div id="log"></div>
+    </section>
+  </aside>
+</main>
+
+<script>
+(() => {
+  'use strict';
+
+  const $ = id => document.getElementById(id);
+  const canvas = $('map');
+  const ctx = canvas.getContext('2d');
+
+  const S = {
+    telemetry: null,
+    waypoints: [],
+    route: null,
+    channel: null,
+    running: false,
+    runOnce: false,
+    paused: false,
+    runIdx: 0,
+    skippedInARow: 0,   // waypoints pulados por z diferente, sem andar nenhum
+    status: '',
+    cmds: 0,
+    lastCmd: null,
+    view: { cx: 0, cy: 0, floor: 0, scale: 26, ready: false },
+    hover: null,
+    dragging: false,
+    attackLock: false,
+    stepInFlight: false,
+    potionAt: 0,          // ultimo uso de pocao (ms)
+    potionCooldownMs: 1500,  // da config real: hoenn.potionCooldownMs
+  };
+
+  /* Manda a pocao respeitando cooldown.
+   *
+   * BUG MEDIDO (2026-11-13): sem isto, com hp=0 a UI disparava `hotkey Alt+f`
+   * a cada 400 ms (o laco de combate), 14 comandos em 2 s. A DLL aceitava e
+   * devolvia status 5 (action bar em cooldown) — spam inutil que polui o canal
+   * e pode mascarar o proximo problema real.
+   *
+   * `potionCooldownMs` vem da config REAL capturada do Shiba
+   * (hoenn.potionCooldownMs = 1500), nao de numero inventado. */
+  async function usePotion(reason) {
+    const now = Date.now();
+    if (now - S.potionAt < S.potionCooldownMs) return false;
+    S.potionAt = now;
+    await cmd('hotkey', 'Alt+f');
+    log(`pocao (${reason})`, 'dim');
+    return true;
+  }
+
+  /* ── log ── */
+  function log(msg, cls = '') {
+    const el = document.createElement('div');
+    el.className = cls;
+    const t = new Date().toLocaleTimeString('pt-BR', { hour12: false });
+    el.textContent = `${t}  ${msg}`;
+    const box = $('log');
+    box.appendChild(el);
+    while (box.children.length > 300) box.removeChild(box.firstChild);
+    box.scrollTop = box.scrollHeight;
+  }
+
+  /* ── API ── */
+  async function post(url, body) {
+    const r = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body || {}),
+    });
+    const j = await r.json().catch(() => ({ ok: false, error: 'resposta invalida' }));
+    if (!r.ok || j.ok === false) throw Error(j.error || ('HTTP ' + r.status));
+    return j;
+  }
+
+  async function cmd(name, parameter, options) {
+    try {
+      const j = await post('/comando', { name, parameter, options });
+      S.cmds++;
+      S.lastCmd = { name, parameter, status: j.ack ? j.ack.status : null };
+      const st = j.ack ? j.ack.status : null;
+      const label = parameter === undefined ? name : `${name} ${JSON.stringify(parameter)}`;
+      log(`${label} -> status ${st}`, st === 0 ? 'ok' : 'bad');
+      return j.ack;
+    } catch (e) {
+      log(`${name} FALHOU: ${e.message}`, 'bad');
+      return null;
+    }
+  }
+
+  /* ── SSE ── */
+  function connectSSE() {
+    const es = new EventSource('/eventos');
+    es.addEventListener('telemetry', ev => {
+      try { onTelemetry(JSON.parse(ev.data)); } catch {}
+    });
+    es.addEventListener('state', ev => {
+      try { S.state = JSON.parse(ev.data); } catch {}
+    });
+    es.addEventListener('channel', ev => {
+      try {
+        const d = JSON.parse(ev.data);
+        S.channel = d.status;
+        $('chan').textContent = d.status || '—';
+        $('dot').className = 'dot' + (String(d.status).includes('conectado') ? ' on' : ' err');
+      } catch {}
+    });
+    es.addEventListener('route', ev => {
+      try {
+        const d = JSON.parse(ev.data);
+        if (d && Array.isArray(d.waypoints) && d.updatedAt !== S.route?.updatedAt) {
+          // nao sobrescreve o que o usuario esta editando sem aviso
+        }
+      } catch {}
+    });
+    es.onerror = () => {
+      $('dot').className = 'dot err';
+      $('chan').textContent = 'desconectado';
+    };
+    return es;
+  }
+
+  /* ── geometria ── */
+  function sameFloor(c) {
+    const me = S.telemetry?.position;
+    return me && c.pos && me.z === c.pos.z;
+  }
+
+  /* Guarda de mundo — precisa de DOIS sinais, nao um.
+   *
+   * MEDIDO (2026-11-13), em sequencia no mesmo cliente:
+   *
+   *   a) menu:        runtimeReady=false, position=(957,1411,7) valida,
+   *                   healthPercent=100  -> so' o gate pega
+   *   b) transicao:   runtimeReady=TRUE,  position=(0,0,0), hp=0
+   *                   -> so' a posicao pega
+   *
+   * O gate abre ANTES da posicao ser publicada (carregando mapa) e continua
+   * aberto depois da morte. Confiar so' nele reproduz o bug (b): 10 walks
+   * enviados, 0 tiles andados. Confiar so' na posicao reproduz o bug (a):
+   * position vem do vtable-scan e fica valida com o personagem no menu.
+   *
+   * A regra correta e' a conjuncao. `(0,0,0)` e `(65535,65535,255)` sao
+   * sentinelas de "sem mundo" que a DLL publica — nao sao coordenadas. */
+  function inWorld() {
+    const t = S.telemetry;
+    if (!t) return false;
+    const p = t.position;
+    const posOk = Boolean(
+      p && Number.isInteger(p.x) && Number.isInteger(p.y) && Number.isInteger(p.z)
+      && p.x > 0 && p.y > 0 && p.x < 60000 && p.y < 60000 && p.z >= 0 && p.z < 100
+    );
+    if (!posOk) return false;
+    // DLL antiga nao publica runtimeReady: cai na checagem de posicao (mais fraca)
+    if (typeof t.runtimeReady === 'boolean') return t.runtimeReady === true;
+    return true;
+  }
+  function cheb(a, b) {
+    if (!a || !b) return Infinity;
+    return Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y));
+  }
+  /* Alvos válidos: selvagem vivo no MESMO andar, medindo a distancia a partir
+   * do POKEMON (ownPokemon), nao do jogador.
+   *
+   * WHY (medido 2026-11-13): quem executa o golpe e' o Pokemon invocado. O
+   * handler nativo compara a criatura com [rt+0x2548] e recusa em silencio
+   * (retorna 4) quando ja' e' o alvo atual do jogo. A distancia que importa
+   * para conectar e' Pokemon<->criatura: alvo a 1 tile do Pokemon caiu
+   * 100 -> 79 -> 56 -> 8 -> 4; a 14-15 tiles nao caiu nada. Medir do jogador
+   * daria "2 tiles" para um alvo que na pratica esta' longe do Pokemon. */
+  function targetsOnMyFloor() {
+    const t = S.telemetry;
+    if (!t || !Array.isArray(t.creatures)) return [];
+    const me = t.position;
+    const origem = (t.ownPokemon && t.ownPokemon.pos) || me;
+    const ownId = t.ownPokemon?.id;
+    if (!me || !origem) return [];
+    return t.creatures
+      .filter(c => c && c.type === 1 && c.healthPercent > 0)
+      .filter(c => c.id !== ownId)
+      .filter(c => c.pos && c.pos.z === me.z)
+      .map(c => ({
+        ...c,
+        dist: Math.max(Math.abs(origem.x - c.pos.x), Math.abs(origem.y - c.pos.y)),
+        distPlayer: Math.max(Math.abs(me.x - c.pos.x), Math.abs(me.y - c.pos.y)),
+      }))
+      .sort((a, b) => a.dist - b.dist);
+  }
+
+  /* ── telemetria ── */
+  function onTelemetry(t) {
+    S.telemetry = t;
+    $('pid').textContent = t.clientPid ?? '—';
+    $('pos').textContent = t.position ? `${t.position.x},${t.position.y}` : '—';
+    $('hp').textContent = t.healthPercent ?? '—';
+    $('hp').style.color = t.healthPercent <= 30 ? 'var(--bad)'
+      : t.healthPercent <= 60 ? 'var(--warn)' : 'var(--ok)';
+    $('ncre').textContent = Array.isArray(t.creatures) ? t.creatures.length : '—';
+    $('floor').textContent = t.position ? t.position.z : '—';
+
+    const world = inWorld();
+    $('world').textContent = world ? 'ok' : 'fora';
+    $('world').style.color = world ? 'var(--ok)' : 'var(--bad)';
+    $('btnRun').disabled = !world || !S.waypoints.length;
+    $('btnRunOnce').disabled = !world || !S.waypoints.length;
+    $('btnAtkNear').disabled = !world;
+
+    if (t.position) {
+      S.view.floor = t.position.z;
+      if (!S.view.ready) { S.view.cx = t.position.x; S.view.cy = t.position.y; S.view.ready = true; }
+    }
+
+    const cand = targetsOnMyFloor();
+    const hint = $('combatHint');
+    if (!cand.length) {
+      const others = (t.creatures || []).filter(c => c.type === 1 && c.healthPercent > 0 && !sameFloor(c));
+      hint.textContent = others.length
+        ? `Nenhum alvo no seu andar. ${others.length} em outro z (${[...new Set(others.map(c => c.pos.z))].join(',')}).`
+        : 'Nenhum selvagem visível.';
+      hint.style.color = 'var(--muted)';
+    } else {
+      const c = cand[0];
+      hint.textContent = `Alvo: ${c.name} a ${c.dist} tile(s), hp ${c.healthPercent}%`;
+      hint.style.color = c.dist <= 2 ? 'var(--ok)' : 'var(--warn)';
+    }
+    $('kvTz').textContent = (t.creatures || [])
+      .filter(c => c.type === 1).map(c => c.pos.z)
+      .filter((v, i, a) => a.indexOf(v) === i).join(',') || '—';
+
+    if (S.running && !S.paused) tickRunner();
+    else if (S.runOnce && !S.stepInFlight) tickRunner();
+
+    draw();
+    updateKV();
+  }
+
+  /* ── desenho ── */
+  function resize() {
+    const r = canvas.parentElement.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = Math.max(1, Math.floor(r.width * dpr));
+    canvas.height = Math.max(1, Math.floor(r.height * dpr));
+    canvas.style.width = r.width + 'px';
+    canvas.style.height = r.height + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    draw();
+  }
+
+  function toScreen(p) {
+    const { cx, cy, scale } = S.view;
+    return {
+      x: canvas.clientWidth / 2 + (p.x - cx) * scale,
+      y: canvas.clientHeight / 2 + (p.y - cy) * scale,
+    };
+  }
+  function toWorld(sx, sy) {
+    const { cx, cy, scale } = S.view;
+    return {
+      x: Math.round(cx + (sx - canvas.clientWidth / 2) / scale),
+      y: Math.round(cy + (sy - canvas.clientHeight / 2) / scale),
+      z: S.view.floor,
+    };
+  }
+
+  function draw() {
+    const W = canvas.clientWidth, H = canvas.clientHeight;
+    if (!W || !H) return;
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = '#0d1117';
+    ctx.fillRect(0, 0, W, H);
+
+    const sc = S.view.scale;
+    const { cx, cy } = S.view;
+
+    // grade
+    const x0 = Math.floor(cx - (W / 2) / sc) - 1;
+    const x1 = Math.ceil(cx + (W / 2) / sc) + 1;
+    const y0 = Math.floor(cy - (H / 2) / sc) - 1;
+    const y1 = Math.ceil(cy + (H / 2) / sc) + 1;
+
+    ctx.strokeStyle = '#21262d';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let x = x0; x <= x1; x++) {
+      const s = toScreen({ x, y: y0 });
+      ctx.moveTo(Math.round(s.x) + .5, 0);
+      ctx.lineTo(Math.round(s.x) + .5, H);
+    }
+    for (let y = y0; y <= y1; y++) {
+      const s = toScreen({ x: x0, y });
+      ctx.moveTo(0, Math.round(s.y) + .5);
+      ctx.lineTo(W, Math.round(s.y) + .5);
+    }
+    ctx.stroke();
+
+    // coordenadas a cada 5 tiles
+    ctx.fillStyle = '#484f58';
+    ctx.font = '10px ui-monospace, monospace';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    for (let x = x0; x <= x1; x++) {
+      if (x % 5 !== 0) continue;
+      const s = toScreen({ x, y: y1 });
+      ctx.fillText(String(x), s.x + 2, s.y + 2);
+    }
+    for (let y = y0; y <= y1; y++) {
+      if (y % 5 !== 0) continue;
+      const s = toScreen({ x: x0, y });
+      ctx.fillText(String(y), s.x + 2, s.y + 2);
+    }
+
+    // rota
+    if (S.waypoints.length) {
+      ctx.strokeStyle = 'rgba(47,129,247,.5)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      S.waypoints.forEach((w, i) => {
+        const p = toScreen(w.pos);
+        if (i === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y);
+      });
+      ctx.stroke();
+
+      S.waypoints.forEach((w, i) => {
+        const p = toScreen(w.pos);
+        const active = S.running && i === S.runIdx;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, active ? 9 : 6, 0, Math.PI * 2);
+        ctx.fillStyle = active ? '#238636' : (w.pos.z === S.view.floor ? '#2f81f7' : '#484f58');
+        ctx.fill();
+        ctx.strokeStyle = '#0d1117'; ctx.lineWidth = 2; ctx.stroke();
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 9px ui-monospace, monospace';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(String(i + 1), p.x, p.y);
+      });
+    }
+
+    // criaturas
+    const t = S.telemetry;
+    if (t && Array.isArray(t.creatures)) {
+      for (const c of t.creatures) {
+        if (!c.pos) continue;
+        const p = toScreen(c.pos);
+        const mine = c.pos.z === S.view.floor;
+        const isOwn = t.ownPokemon && c.id === t.ownPokemon.id;
+        let color = '#484f58';
+        if (isOwn) color = '#3fb950';
+        else if (c.type === 1 && mine) color = c.healthPercent > 0 ? '#f85149' : '#30363d';
+        else if (c.type === 1) color = '#6e2f2f';
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, mine ? 7 : 5, 0, Math.PI * 2);
+        ctx.fillStyle = color;
+        ctx.globalAlpha = mine ? 1 : .45;
+        ctx.fill();
+        ctx.globalAlpha = 1;
+
+        if (mine && c.type === 1) {
+          ctx.fillStyle = '#e6edf3';
+          ctx.font = '10px ui-monospace, monospace';
+          ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+          ctx.fillText(`${c.name} ${c.healthPercent}%`, p.x, p.y - 9);
+        }
+      }
+    }
+
+    // jogador
+    if (t && t.position) {
+      const p = toScreen(t.position);
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 9, 0, Math.PI * 2);
+      ctx.fillStyle = '#2f81f7';
+      ctx.fill();
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 10px ui-monospace, monospace';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('@', p.x, p.y);
+
+      // hp ring
+      const hp = t.healthPercent ?? 100;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 14, -Math.PI / 2, -Math.PI / 2 + (hp / 100) * Math.PI * 2);
+      ctx.strokeStyle = hp <= 30 ? '#f85149' : hp <= 60 ? '#d29922' : '#3fb950';
+      ctx.lineWidth = 2.5; ctx.stroke();
+    }
+
+    // hover crosshair
+    if (S.hover) {
+      const w = toWorld(S.hover.x, S.hover.y);
+      const s = toScreen(w);
+      ctx.strokeStyle = 'rgba(230,237,243,.35)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(s.x - 8, s.y); ctx.lineTo(s.x + 8, s.y);
+      ctx.moveTo(s.x, s.y - 8); ctx.lineTo(s.x, s.y + 8);
+      ctx.stroke();
+      ctx.fillStyle = 'rgba(230,237,243,.6)';
+      ctx.font = '10px ui-monospace, monospace';
+      ctx.textAlign = 'left'; ctx.textBaseline = 'bottom';
+      ctx.fillText(`${w.x},${w.y},${w.z}`, s.x + 10, s.y - 6);
+    }
+  }
+
+  /* ── waypoints ── */
+  function renderWaypoints() {
+    const box = $('waypoints');
+    box.innerHTML = '';
+    if (!S.waypoints.length) {
+      box.innerHTML = '<div class="empty">Clique no mapa para adicionar.</div>';
+    } else {
+      S.waypoints.forEach((w, i) => {
+        const d = document.createElement('div');
+        d.className = 'wp';
+        d.innerHTML = `<span class="idx">${i + 1}</span>`
+          + `<span class="pos">${w.pos.x},${w.pos.y},${w.pos.z}</span>`
+          + `<button class="del" data-i="${i}">×</button>`;
+        box.appendChild(d);
+      });
+    }
+    /* Nao mexe em `disabled` aqui: quem decide e' onTelemetry(), que conhece
+     * o `runtimeReady`. Habilitar por ter waypoint faria o botao parecer
+     * pronto com o personagem no menu. */
+    $('runHint').textContent = `Rota: ${S.waypoints.length} waypoint(s).`
+      + (inWorld() ? '' : ' — personagem fora do mundo');
+  }
+
+  async function persistRoute() {
+    try {
+      await post('/rota', { waypoints: S.waypoints });
+      log(`rota salva (${S.waypoints.length} wp)`, 'dim');
+    } catch (e) {
+      log('falha ao salvar rota: ' + e.message, 'bad');
+    }
+  }
+
+  /* ── executor ── */
+  async function stepTowards(wp) {
+    if (!inWorld()) return 'fora-do-mundo';
+    const me = S.telemetry?.position;
+    if (!me) return 'sem-pos';
+    if (wp.pos.z !== me.z) return 'z-diff';
+    if (me.x === wp.pos.x && me.y === wp.pos.y) return 'reached';
+    const dx = wp.pos.x - me.x, dy = wp.pos.y - me.y;
+    // 0=n 1=l 2=s 3=o
+    let dir;
+    if (Math.abs(dx) >= Math.abs(dy)) dir = dx > 0 ? 1 : 3;
+    else dir = dy > 0 ? 2 : 0;
+    S.stepInFlight = true;
+    await cmd('walk', dir);
+    setTimeout(() => { S.stepInFlight = false; }, 900);
+    return 'walking';
+  }
+
+  async function tickRunner() {
+    if (!S.telemetry || S.stepInFlight) { draw(); return; }
+    const list = S.waypoints;
+    if (!list.length) { stopRun('rota vazia'); return; }
+
+    /* PROTEÇÃO CONTRA LOOP INFINITO DE "PULAR".
+     *
+     * BUG MEDIDO (2026-11-13): o personagem num andar (z=6) e a rota toda em
+     * outro (z=7) fazia o runner pular waypoint sem parar — `wp` chegou a
+     * "146/3" e o log encheu de "waypoint N em z=7, você está em z=6".
+     * O contador crescia sem nunca andar, porque pular nao consome tempo e
+     * o tick era chamado a cada telemetria (1 Hz).
+     *
+     * Correção: pular avança o índice, mas se pularmos TODOS os waypoints
+     * sem executar nenhum passo, a rota e' inalcançável do andar atual.
+     * Para e explica, em vez de girar. */
+    if (S.skippedInARow >= list.length) {
+      stopRun(`rota toda em outro andar (você está em z=${S.telemetry?.position?.z})`);
+      log('dica: desenhe os waypoints no andar em que você está', 'dim');
+      return;
+    }
+
+    const wp = list[S.runIdx % list.length];
+    if (!wp) { stopRun('fim'); return; }
+
+    /* COMBATE ANTES DE ANDAR.
+     *
+     * ORDEM IMPORTA. Antes eu andava primeiro e so' depois olhava alvo; com
+     * um selvagem a 1 tile do Pokemon o personagem passava por cima dele e
+     * ia embora. Medido 2026-11-13: rota de 3 waypoints, alvo a 8 tiles,
+     * "walk 1" repetido e "Magnemite recusado" — o alvo ficava para tras.
+     *
+     * Agora: se ha selvagem ao alcance do Pokemon, luta; so' anda quando
+     * nao ha nada para bater. E' o que um jogador faz. */
+    if ($('optAttack').checked && !S.attackLock) {
+      const perto = targetsOnMyFloor();
+      if (perto.length && perto[0].dist <= 3) {
+        await maybeFight();
+        updateKV();
+        draw();
+        return;
+      }
+    }
+
+    const r = await stepTowards(wp);
+    if (r === 'fora-do-mundo') {
+      log('parado: personagem fora do mundo (runtimeReady=false)', 'bad');
+      stopRun('fora do mundo');
+      return;
+    }
+    if (r === 'reached') {
+      log(`waypoint ${S.runIdx + 1} alcançado`, 'ok');
+      S.runIdx++;
+      S.skippedInARow = 0;          // andou: zera o contador de pulos
+      if (S.runOnce && S.runIdx >= list.length) { stopRun('volta completa'); return; }
+      updateKV();
+      return;
+    }
+    if (r === 'z-diff') {
+      S.skippedInARow = (S.skippedInARow || 0) + 1;
+      log(`waypoint ${S.runIdx + 1} em z=${wp.pos.z}, você está em z=${S.telemetry.position.z} — pulando`, 'warn');
+      S.runIdx++;
+      /* `runIdx` cresce sem limite porque o indice e' usado com % length:
+       * se nao normalizar, o "waypoint N" no painel mostra 146/3. Normalizar
+       * mantem o numero legivel E preserva o % — e' a mesma posicao ciclica. */
+      if (S.runIdx >= list.length) S.runIdx %= list.length;
+      updateKV();
+      return;
+    }
+    if (r === 'sem-pos') { stopRun('sem posição'); return; }
+
+    updateKV();
+    draw();
+  }
+
+  async function maybeFight() {
+    const cand = targetsOnMyFloor();
+    if (!cand.length) return;
+    /* Alcance medido: alvo a 1 tile do POKEMON conectou (100->79->56->8->4).
+     * A 14-15 tiles nao conectou nada. Uso 3 como teto: 1 e' o comprovado,
+     * 2 da' margem para o Pokemon se mover durante o dispatch, 3 e' generoso
+     * demais e so' gasta comando. `dist` ja' vem medido do Pokemon
+     * (targetsOnMyFloor), nao do jogador. */
+    const c = cand[0];
+    if (c.dist > 3) return;             // longe do Pokemon: continua andando
+    S.attackLock = true;
+    try {
+      if ($('optHeal').checked) {
+        const hp = S.telemetry?.healthPercent;
+        if (typeof hp === 'number' && hp <= 60) await usePotion('antes do ataque');
+      }
+
+      /* ATE 3 ALVOS. Motivo medido (2026-11-13): o handler nativo recusa em
+       * silencio o alvo que o JOGO ja' tem como atual ([rt+0x2548]) e devolve
+       * 4 nesse caso. Medido: alvo #1 -> rc=4, HP parado; alvos #2..#4 ->
+       * rc=11/13 e HP caindo. Se insistir no mesmo alvo recusado, o bot passa
+       * a impressao de "ataque nao funciona".
+       *
+       * O ACK nao carrega esse codigo (status 0 = comando entregue), entao a
+       * unica forma de saber e' medir o HP. Se nao caiu em 1.5 s, tenta o
+       * proximo da lista. */
+      for (const alvo of cand.slice(0, 3)) {
+        const hpAntes = alvo.healthPercent;
+        await cmd('attack', alvo.id);
+        let morreu = false;
+        for (let i = 0; i < 3; i++) {
+          await new Promise(r => setTimeout(r, 500));
+          const now = targetsOnMyFloor().find(x => x.id === alvo.id);
+          if (!now) { morreu = true; break; }
+          if (now.healthPercent < hpAntes) break;   // machucou: insiste nele
+          if ($('optHeal').checked) {
+            const hp = S.telemetry?.healthPercent;
+            if (typeof hp === 'number' && hp <= 60) await usePotion('durante o combate');
+          }
+        }
+        if (morreu) { log(`${alvo.name} morreu`, 'ok'); break; }
+        const agora = targetsOnMyFloor().find(x => x.id === alvo.id);
+        if (agora && agora.healthPercent < hpAntes) {
+          // conectou: continua batendo ate morrer ou 4 s
+          if ($('optCombo').checked) await cmd('combo', '!autocombo');
+          const t0 = Date.now();
+          while (Date.now() - t0 < 4000) {
+            await new Promise(r => setTimeout(r, 500));
+            const n2 = targetsOnMyFloor().find(x => x.id === alvo.id);
+            if (!n2) { log(`${alvo.name} morreu`, 'ok'); break; }
+            if ($('optHeal').checked) {
+              const hp = S.telemetry?.healthPercent;
+              if (typeof hp === 'number' && hp <= 60) await usePotion('durante o combate');
+            }
+          }
+          break;
+        }
+        log(`${alvo.name} recusado (sem dano) — tentando outro`, 'warn');
+      }
+    } finally {
+      S.attackLock = false;
+    }
+  }
+
+  function startRun(once) {
+    if (!S.waypoints.length) return;
+    if (!inWorld()) {
+      log('nao posso rodar: personagem fora do mundo (runtimeReady=false)', 'bad');
+      log('entre no mundo no jogo e tente de novo', 'dim');
+      return;
+    }
+    S.running = true; S.runOnce = !!once; S.paused = false;
+    S.skippedInARow = 0;
+    // começa no waypoint mais próximo do jogador
+    const me = S.telemetry?.position;
+    if (me) {
+      let best = 0, bd = Infinity;
+      S.waypoints.forEach((w, i) => {
+        if (w.pos.z !== me.z) return;
+        const d = cheb(me, w.pos);
+        if (d < bd) { bd = d; best = i; }
+      });
+      S.runIdx = best;
+    }
+    $('btnRun').textContent = '⏸ Pausar';
+    $('btnRun').classList.add('on');
+    log(`rota iniciada no waypoint ${S.runIdx + 1}${once ? ' (uma volta)' : ''}`, 'ok');
+    tickRunner();
+  }
+
+  function stopRun(reason) {
+    S.running = false; S.runOnce = false; S.paused = false;
+    $('btnRun').textContent = '▶ Rodar';
+    $('btnRun').classList.remove('on');
+    if (reason) log('rota parada: ' + reason, 'dim');
+    updateKV();
+  }
+
+  function updateKV() {
+    $('kvWp').textContent = S.waypoints.length ? `${S.runIdx + 1}/${S.waypoints.length}` : '—';
+    $('kvStatus').textContent = S.running ? (S.paused ? 'pausado' : 'rodando') : 'parado';
+    $('kvCmds').textContent = String(S.cmds);
+    $('kvLast').textContent = S.lastCmd
+      ? `${S.lastCmd.name}${S.lastCmd.parameter !== undefined ? ' ' + S.lastCmd.parameter : ''} (${S.lastCmd.status})`
+      : '—';
+  }
+
+  /* ── eventos de UI ── */
+  canvas.addEventListener('mousemove', e => {
+    const r = canvas.getBoundingClientRect();
+    S.hover = { x: e.clientX - r.left, y: e.clientY - r.top };
+    if (S.dragging && S.dragging.moved) {
+      const w = toWorld(S.hover.x, S.hover.y);
+      S.view.cx -= (w.x - S.dragging.startedAt.x);
+      S.view.cy -= (w.y - S.dragging.startedAt.y);
+      S.dragging.startedAt = w;
+    }
+    draw();
+  });
+  canvas.addEventListener('mouseleave', () => { S.hover = null; draw(); });
+
+  canvas.addEventListener('mousedown', e => {
+    if (e.button === 1 || e.button === 2 || e.shiftKey) {
+      const r = canvas.getBoundingClientRect();
+      S.dragging = { moved: false, startedAt: toWorld(e.clientX - r.left, e.clientY - r.top) };
+      canvas.style.cursor = 'grabbing';
+      e.preventDefault();
+    }
+  });
+
+  canvas.addEventListener('mouseup', e => {
+    if (S.dragging) { S.dragging = null; canvas.style.cursor = 'crosshair'; return; }
+  });
+
+  canvas.addEventListener('click', e => {
+    if (S.dragging) return;
+    const r = canvas.getBoundingClientRect();
+    const p = toWorld(e.clientX - r.left, e.clientY - r.top);
+    S.waypoints.push({ action: 'walk', pos: p, param: '' });
+    renderWaypoints();
+    persistRoute();
+    draw();
+  });
+
+  canvas.addEventListener('contextmenu', e => e.preventDefault());
+
+  canvas.addEventListener('wheel', e => {
+    e.preventDefault();
+    const old = S.view.scale;
+    const next = Math.max(8, Math.min(60, old * (e.deltaY > 0 ? 0.9 : 1.1)));
+    // zoom ancorado no cursor
+    const r = canvas.getBoundingClientRect();
+    const mx = e.clientX - r.left, my = e.clientY - r.top;
+    const before = toWorld(mx, my);
+    S.view.scale = next;
+    const after = toWorld(mx, my);
+    S.view.cx += before.x - after.x;
+    S.view.cy += before.y - after.y;
+    draw();
+  }, { passive: false });
+
+  $('waypoints').addEventListener('click', e => {
+    const b = e.target.closest('button[data-i]');
+    if (!b) return;
+    const i = Number(b.dataset.i);
+    S.waypoints.splice(i, 1);
+    if (S.runIdx >= S.waypoints.length) S.runIdx = 0;
+    renderWaypoints();
+    persistRoute();
+    draw();
+  });
+
+  $('btnClear').addEventListener('click', () => {
+    if (!S.waypoints.length) return;
+    if (!confirm('Limpar todos os waypoints?')) return;
+    S.waypoints = []; S.runIdx = 0; stopRun('');
+    renderWaypoints(); persistRoute(); draw();
+  });
+
+  $('btnRun').addEventListener('click', () => {
+    if (S.running && !S.paused) {
+      S.paused = true;
+      $('btnRun').textContent = '▶ Retomar';
+      $('btnRun').classList.remove('on');
+      log('rota pausada', 'dim');
+    } else if (S.running && S.paused) {
+      S.paused = false;
+      $('btnRun').textContent = '⏸ Pausar';
+      $('btnRun').classList.add('on');
+      log('rota retomada', 'dim');
+      tickRunner();
+    } else {
+      startRun(false);
+    }
+    updateKV();
+  });
+
+  $('btnRunOnce').addEventListener('click', () => startRun(true));
+  $('btnPauseRun').addEventListener('click', () => { if (S.running) { S.paused = !S.paused; updateKV(); } });
+
+  $('btnAtkNear').addEventListener('click', async () => {
+    const cand = targetsOnMyFloor();
+    if (!cand.length) { log('nenhum alvo no seu andar', 'warn'); return; }
+    /* Mesma regra do maybeFight: ate 3 alvos porque o jogo recusa em silencio
+     * o alvo que ja' tem como atual. Medido 2026-11-13. */
+    for (const alvo of cand.slice(0, 3)) {
+      log(`alvo: ${alvo.name} a ${alvo.dist} tile(s) hp ${alvo.healthPercent}%`, 'dim');
+      const hpAntes = alvo.healthPercent;
+      await cmd('attack', alvo.id);
+      let agiu = false;
+      for (let i = 0; i < 4; i++) {
+        await new Promise(r => setTimeout(r, 500));
+        const now = targetsOnMyFloor().find(x => x.id === alvo.id);
+        if (!now) { log(`${alvo.name} morreu`, 'ok'); agiu = true; break; }
+        if (now.healthPercent < hpAntes) { agiu = true; break; }
+      }
+      if (agiu) {
+        if ($('optCombo').checked) await cmd('combo', '!autocombo');
+        return;
+      }
+      log(`${alvo.name} recusado (sem dano) — tentando outro`, 'warn');
+    }
+    log('todos os alvos próximos recusados', 'bad');
+  });
+
+  $('btnCombo').addEventListener('click', () => cmd('combo', '!autocombo'));
+  $('btnPotion').addEventListener('click', () => usePotion('manual'));
+  $('btnStop').addEventListener('click', () => { stopRun('manual'); cmd('stop', 0); });
+
+  window.addEventListener('resize', resize);
+  window.addEventListener('keydown', e => {
+    if (e.target.tagName === 'INPUT') return;
+    if (e.key === 'Escape') stopRun('esc');
+  });
+
+  /* ── boot ── */
+  resize();
+  renderWaypoints();
+  updateKV();
+  log('conectando…', 'dim');
+  connectSSE();
+  // primeiro paint via /estado (SSE pode demorar)
+  fetch('/estado').then(r => r.json()).then(j => {
+    if (j.telemetry) onTelemetry(j.telemetry);
+    if (j.route && Array.isArray(j.route.waypoints) && j.route.waypoints.length) {
+      S.waypoints = j.route.waypoints;
+      renderWaypoints();
+      log(`rota carregada: ${S.waypoints.length} waypoint(s)`, 'dim');
+    }
+    if (j.channel) { $('chan').textContent = j.channel; }
+  }).catch(() => {});
+})();
+</script>
+</body>
+</html>

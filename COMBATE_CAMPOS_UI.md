@@ -166,3 +166,20 @@ O bot já aberto mantém o código carregado anteriormente. Para carregar a UI
 corrigida, salvar primeiro as alterações de perfil e reabrir somente o bot.
 Nenhuma janela do usuário foi encerrada nesta correção e nenhum input foi
 enviado ao jogo. A integração de combate real permanece pendente.
+
+## Atualizacao de 2026-11-01
+
+Min Count, Perfect Lure e timeout passaram a ser aplicados como descrito em
+AUDITORIA_TARGET_MINCOUNT_2026-11-01.md. Resumo das linhas alteradas da matriz:
+
+- monsters[].range/minCount: contagem por regra, no alcance da propria regra, a
+  partir do Pokemon quando a posicao dele existe (fallback treinador).
+- combo.perfectingLureHpPercent: o gate usa hoenn.perfectLureMinHp quando
+  presente, com o campo do combo como fallback.
+- hoenn.perfectLureTimeoutMs: nao libera em waypoint box; o RPM agora informa
+  boxMode ao motor.
+- hoenn.minWildsToEngage: vale mesmo com perfectLure desligado; o modo Hunt zera
+  o campo por nao ser uma parada de rota.
+- O ataque nao e mais enviado enquanto a box do Perfect Lure esta aberta.
+
+Nada disso foi validado no cliente real; ver pendencias no relatorio.

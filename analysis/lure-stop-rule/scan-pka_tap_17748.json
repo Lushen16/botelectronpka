@@ -1,0 +1,35 @@
+{
+ "file": "pka_tap_17748.jsonl",
+ "sizeMB": 2690,
+ "scannedLines": 472170,
+ "timeRange": {
+  "from": 50264890,
+  "to": null,
+  "firstT": 50264890,
+  "lastT": 62233718
+ },
+ "counts": {
+  "kind5": 15932,
+  "kind5WithPosition": 12064,
+  "kind5WithWild": 0,
+  "kind6": 68524,
+  "kind6InLure": 33577
+ },
+ "coverage": {
+  "kind6InLureWithSample": 0,
+  "kind6InLureWithWild": 0,
+  "ratePos": 0,
+  "rateWild": 0,
+  "note": "rateWild e o numero que a previa precisa > 0"
+ },
+ "windows": {
+  "total": 0,
+  "withAtLeast2Frames": 0,
+  "durationMs": {
+   "median": null,
+   "max": null,
+   "total": 0
+  },
+  "top": []
+ }
+}

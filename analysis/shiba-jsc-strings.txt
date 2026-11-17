@@ -1,0 +1,1227 @@
+ PfRL
+ PfbM1o
+ PfbQ
+ Pfbl
+ PfnB>;
+ Pfn_bq
+ aplicada assim que o cliente responder. 
+ bloqueado. Aguarde e carregue novamente no Walker.
+ configurado e foi preservado.
+ foi alterado fora do bot. Recarregue a rota antes de salvar para preservar as altera
+ indispon
+ offline ou a sess
+ para abrir o menu; ele fecha sozinho quando o jogo fechar.
+ qXj(
+ qXo(
+ qXy 
+ qXy0
+ reenviado automaticamente; confira a conex
+ removida da interface simplificada; original preservado no arquivo Lua.q
+ respondendo.
+ respondendo; se persistir, reabra pelo PokeAlliance.exe.
+ salvando os perfis. Aguarde e tente novamente.
+ seis Pok
+ um perfil conhecido do menu antigo.
+!autocombo
+",B4J3zpJ
+"0Jdb
+"<R;SPJ
+"LbK+
+"tRXR
+#l2pbX*CBT:@
+#p3@RpbLB
+#|zHBG
+$:<BTZ
+$PgFA
+$Pgf"
+$PgfnFm
+$Pgj4
+$PgjY
+(PhJcV
+(PhJ}
+(Phjj
+*$B4B4BXj
+*$BHBd20
+*("KZSjS
+*4* * *<*8+h2`BLj42hb42
+*DBCZ|*@R
+*dBG+
+*pRx*
++8RPRH"
++TRl"
++XRX"<*<*
++XRd"
++p2$RDRC
++pJ<Z`RDkD
+,Pir`
+,Piz+*
+--client-pid=
+--hidden
+--ipc-directory=g
+../shared/alerts.js
+../shared/messages.js
+../shared/schema.js
+../shared/walker.js
+./legacy.cjs
+./lib/alert-presenter.cjs
+./lib/hotkeys.cjs
+./lib/launch.cjs
+./lib/legacy.cjs
+./lib/map-view.cjs
+./lib/menu-view.cjs
+./lib/native-runtime.cjs
+./lib/pipe-bridge.cjs
+./lib/protocol.cjs
+./lib/security.cjs
+./lib/settings.cjs
+./lib/walker-profiles.cjs
+./otmm.cjs
+./pipe-bridge.cjs
+./protocol.cjs
+./settings.cjs
+./shared/alerts.js
+./shared/messages.js
+./telemetry.cjs
+.lock
+/alert-audio.js
+/alerts-audio/
+/alerts-model.js`
+/alerts.js
+/app.js
+/diagnostics.js
+/guild-daily.js
+/healer-model.js`
+/healer.js
+/hoenn-model.js
+/hoenn.js
+/index.html
+/look.css
+/look.html
+/look.js`
+/looting.js
+/messages.js`
+/schema.js
+/scripts.js
+/style.css
+/target.js
+/walker-model.js`
+/walker.js
+0PjBrL
+2$2Dbg2
+2$2Hbk2
+23BtZ$28Z$28:$+
+2<K`*$*TZSj#
+2HBGj
+2TBH"
+3`bdbcC
+3h*8j$R'#lJT2S
+4PkFA
+4PkR~+.%
+4RdR|J
+8J7STJ
+: formato antigo n
+: inteiro de 32 bits inv
+: lista de waypoints n
+: lista inv
+: objeto inv
+: sem campo equivalente; consulte o arquivo original.
+: texto inv
+: use texto ou n
+: use um inteiro entre 
+: use verdadeiro ou falso.
+:0CXB
+:8bDZ(Z0B
+:|BGR
+A DLL negou a sess
+A conex
+A identidade do Pok
+ACK IPC deve ter exatamente 12 bytes.
+ACK_SIZE
+APPDATA
+Adicione e ative pelo menos uma regra de alerta.
+Aguardando telemetria nativa atualizada.
+Aguarde a identifica
+Aguarde a verifica
+Aguarde o perfil do nick atual: o personagem mudou.
+AlertPresenter
+Alvo/postura devem acompanhar uma skill de combo com UUID.
+Arquivo Lua inv
+Arquivo de configura
+Arquivo de perfis cont
+Arquivo maior que 2 MB.
+Assinatura ou tamanho OTMM inv
+Atalho 
+Atalhos do menu e da pausa precisam de teclas diferentes.
+Autom
+Automa
+BLB`:
+BTCxJ
+BTRH"+*
+BhJL2Dr$JtbX28s8"
+Bloco OTMM descompactado com tamanho inv
+Bloco OTMM inv
+BrowserWindow
+C:\OTPbot
+COMMANDS
+COMMAND_SIZE
+CPjdRd*
+Cache-Control
+Caixas de texto do mapa inv
+Canal n
+Captura
+Carregar mapa pr
+Carregar rota
+ClZP*
+Cliente desconectado.
+Cliente iniciou o bot, mas n
+Cliente interrompeu a inicializa
+Cliente n
+Cliente offline
+Cliente offline. Entre no personagem antes de iniciar.
+Cliente ou action bar aguardando cooldown; comando n
+Cliente parou de atualizar a conex
+Cliente reiniciado; inicie os m
+Cliente selecionado pelo loader
+Cliente sem atualiza
+Cliente sem integra
+Cliente sem os dados necess
+Cliente sem sess
+Comando
+Comando > Confirmar pedido: Cliente n
+Comando > Enviar pedido: N
+Comando > Pausar/retomar: 
+Comando enviado.`
+Comando inv
+Comando ou par
+Combo deve usar !autocombo ou uma lista de spellwords separadas por v
+Condi
+Conex
+Configura
+Confirma
+Contagem de itens inv
+Content-Type
+Controle manual
+Criaturas inv
+DIAGNOSTIC
+DIRECTIONS
+DPorv
+DRh"/"
+Default
+Dispatcher de combo incompat
+Disponibilidade da daily guild inv
+Dynamic Lure incompat
+ElectronSecurity
+ElectronSecurity`
+Enabled
+Escolha o minimap854.otmm ou outro mapa OTMM compat
+Escolha um tier e elemento v
+Esse perfil foi alterado em outro menu. Reabra a lista antes de excluir.
+Esse perfil foi alterado em outro menu. Salve as op
+Estado IPC cont
+Estado IPC deve ter exatamente 48 bytes.
+Estado de outro PID.
+Estado de visualiza
+Estado do m
+Estado do monitor inv
+Estado excedeu o limite.
+Estado nativo inv
+Este arquivo n
+Este menu pertence a outro cliente. Abra o menu dessa conta pelo loader.m 
+Este menu pertence a outro cliente. Abra o menu dessa conta pelo loader.q(
+Evento de alerta inv
+Exportar perfil
+Fila de comandos cheia.
+FileBridge
+Food antigo: o Consum
+Formato de configura
+Formato de perfil JSON n
+Frame excedeu o limite.
+Frame inv
+HRT:HR8
+HZD+D
+Healer
+Hoenn
+Hotkey/slot sem a a
+Hotkeys
+HpPercent
+ID do item
+ID inv
+IPC_UNCONFIRMED
+Identidade da movebar inv
+Identifica
+Importar perfil JSON ou tabela Lua salva
+Iniciar
+Insert
+Inspe
+Interface encerrada
+Item ou stack inv
+Itens inv
+J(Z4ZXZ\B 
+JDBDB 
+JPRTB0S
+J\rDj
+LEGACY
+LEGACY_NAME
+LOCALAPPDATA
+Limite de 100 perfis atingido.
+Limite total de perfis excedido.
+Lista de criaturas n
+MAX_BYTES
+MAX_FRAME
+MAX_MAP_TILES
+Mantenha entre 1 e 100 perfis.
+Mantenha pelo menos um perfil.
+MapService
+Mapa do cliente (OTMM)
+Mapa inv
+Mensagem inesperada.a
+Mensagens de GM: 
+Menu continua aberto
+MenuView`
+Motor C++ incompat
+Motor C++ indispon
+Motor nativo desconectado
+NativeRuntime
+Nick do personagem inv
+Nome da guild inv
+Nome de perfil duplicado.
+Nome do perfil inv
+Nome do personagem inv
+Not found
+Notification`
+O bot continua rodando. Aperte 
+O canal ainda n
+O canal nativo ainda n
+O cliente est
+O cliente parou de atualizar o estado.
+O perfil ativo mudou. Selecione o perfil de novo para continuar editando.
+O perfil do Walker excedeu 2 MB.
+O perfil precisa ser um arquivo da pasta OTPbot.
+O roster Hoenn aceita at
+OTMM excedeu 128 MB.
+OTMM sem blocos de mapa.
+OTPbot
+Origem IPC inv
+Os dados recebidos pertencem a outro cliente.
+Os perfis de mensagens GM devem ser JSON v
+Os perfis de mensagens GM devem ser um objeto JSON.
+OtmmMap
+Outro menu est
+PKA-INIT-NATIVE
+PKA-INIT-SESSION
+PKA2/
+PKA_CHANNEL_KEY
+PKA_IPC_DIR
+Pausado
+Pausar
+Pause os m
+PbFuJ
+PcF*Q
+PcN-n
+PcfO`
+PcnAH 
+Pcr? 
+Pcr@o[
+Pd*wIU
+PdB!>
+PdJ5V
+PdNx_~
+PdR ^Z
+PdVR+
+PdZ'+
+PdZ,$
+PdjU]
+PdjY)
+PdnjU=
+Pdr6W
+PdvSR
+Pdzdx
+Pe*HyB
+PeBT"d
+PeNV^P
+PeZ161
+PeZb,
+Per,5J
+Perfil alterado
+Perfil ativo n
+Perfil do Walker inv
+Perfil n
+Perfis PKA
+Personagem alterado
+PezIm$
+PipeBridge
+PokeAlliance
+PokeAllianceV3
+Pokebar inv
+Pokebar sem UUIDs 
+Postura do combo inv
+Progresso da daily guild inv
+Prote
+RHR3z
+RdZ838*,*
+Reinicie o cliente e injete a DLL atualizada: o ciclo cont
+Rhb,Z R
+SESSION
+STATE_SIZE
+STATUS
+Selecione um cliente conectado.
+Selecione um cliente na conex
+Selecione um cliente online e com estado recente.
+Selecione um m
+Selecione uma regra de mensagem de GM.
+Sem confirma
+SettingsStore
+Sinais de alerta inv
+SnapshotPublisher
+Somente tabelas Lua de dados s
+Status IPC desconhecido: 
+S|jDB
+Target
+Telemetria de outro PID.
+Telemetria excedeu 1 MB.
+Telemetria excedeu o limite.
+Telemetria nativa incompat
+Texto deve ter entre 1 e 255 bytes UTF-8.
+Texto do comando inv
+Texto inv
+Tipo de a
+Use um nome de perfil sem caracteres de caminho.
+Valor incompat
+Verificar perfil
+Verificar sess
+Walker
+Walker: a
+WalkerProfiles
+XBX*("
+XcpB@2HBGB'*
+ZHBG3
+ZdZXZpZ`R
+ZhR'b
+\.(?:otmm|otm)$
+\.exe(?:\.tmp)?$E
+\ZhJ4R4"'+8
+\\.\pipe\pka-runtime-2-
+\\.\pipe\pka-security-
+^!autocombo [^,]+(?:, [^,]+)*$
+^(?:(?:diagnostic|native_fault)_([1-9]\d{0,9})\.log|dll_log\.txt)$
+^(?:(?:state|cmd|ack)_([1-9]\d{0,9})\.bin|(?:telemetry|automation|automation_control|automation_lease|automation_revoked|startup)_([1-9]\d{0,9})\.json)(?:\.(?:transport\.tmp|native\.tmp|tmp|[1-9]\d*\.[1-9]\d*\.tmp|[a-f0-9]{32}\.[1-9]\d*\.tmp))?$
+^(?:scripts_data|healer_config|target_tab_config|target_(?!index\.lua$).+|wk_(?!index\.lua$).+|looting_config|looting_(?!index\.lua$).+|alerts_data|hoenn_data)\.lua$
+^(true|false|nil)\b
+^--client-pid=[1-9]\d{0,9}$
+^\.session\.([1-9]\d{0,9})$
+^\uFEFF
+^cmdorctrl$|^commandorcontrol$
+^ctrl$
+^return\b
+^wk_(?:index|label_scripts)\.lua$
+^wk_.+\.lua$
+`RLZ@"
+accept
+acceptedAck
+acceptedTick
+action
+actions
+activeProfile
+activeSlot
+ageMs
+alert
+alert-audio.js
+alertEventRevision
+alertEvents
+alertEventsDropped
+alertSignals
+alerts
+alerts.js
+alerts_data.lua
+alho OTMM n
+alwaysOnTop
+app.js
+applyProblem`
+applyRetryAt`
+applying`
+armed
+asset
+assets
+atlas
+atomicWrite
+attach
+attachClient`
+attachedPids`
+attack
+attackSeqNum
+attackTargetId
+audio/mpeg
+audio/wav
+audioPaused
+audioStateSignature
+authExpired
+authenticate
+authenticated
+authorized
+autoHideMenuBar
+autoRevive
+automation
+automationVersion
+automation_control
+automation_lease
+automation_revoked
+autoplayPolicy
+autosave
+b,"+BTR
+bDR02/:C*
+b\bTj4*
+backgroundColor
+backgroundThrottlingD
+backspace
+ballId
+before-quit
+beforePublish
+bitmap
+blockKeyc
+bootE
+bootstrap
+boundPid
+bridge
+busyD
+camera_viewers
+canAttack
+canceled
+captureAfterCombat
+captureEntries
+captureRandomMode
+captureVersion
+challenge
+changed
+channelKey
+characterDirectory
+characterKey
+characterKey`(
+characterName
+characters
+chase
+chaseMode
+checkProfile`
+cio inv
+clean-exit
+cleanupArtifacts
+client
+clientPid
+clientPidFromArgs
+clientRunning
+clientWatch
+clientsGoneSince`
+clipboard
+clockMs
+closeDevTools
+closeHintShown
+closingForClients
+combatDispatchVersion
+combo
+comboLureDelay
+comboPokemonName
+command
+commandId
+commandLine
+commandTimeoutMs
+completed
+conditionEvents
+conditionsKnown
+configure
+connectedPids
+connection
+consumable4
+container
+contextIsolationC
+control
+copyText
+corpseId
+corpseIds
+counter
+createConfig
+createConnectionf
+createFromPath
+createHash
+createHmac
+creature
+creatureType
+creatures
+currentConfig
+dPw&fp
+debugger
+decodeAck
+decodeState
+decodeTelemetry
+defaultPath
+delay
+delayMs
+denyd
+dep+ 
+dep+`
+dep, 
+detected`
+devTools
+devtools-opened
+devtoolsj
+diagnostics.js
+dialog
+dialogDirectory
+did-finish-load
+digest
+digo de in
+digo: PKA-CONNECT-LOST.
+digo: PKA-CONNECT-STATE.
+digo: PKA-CONNECT-TIMEOUT.
+digo: PKA-INIT-NATIVE.
+digo: PKA-INIT-SESSION.
+digo: PKA-INIT-STOPPED.
+disableHardwareAcceleration
+disconnectDelivered
+disconnected
+down`P
+drL2#24+$:
+dulo inv
+dulo v
+dulos do bot pausados.
+dulos do bot retomados.
+dulos e alertas antes de trocar de cliente.
+dulos foram pausados.
+dulos novamente
+dynamicLureVersion
+east`
+effect
+encodeCommand
+ensure
+enter
+es com outro nome ou recarregue o perfil.
+es de leitura de mem
+es do jogo indispon
+es inv
+es muito grande.
+evalmachine.<anonymous>
+eventId
+everAttached`
+executionConfig
+expectedAction
+expectedUuid
+export
+fallbackBallId
+fight
+fightMode
+filePaths
+filters
+firstPosition
+floors
+flushApply
+focus
+follow
+foodEnabled
+foodHotkey
+foodIntervalSeconds
+foreground
+frontEnabled
+frontLureEnabled
+frontLureRegroupMargin
+frontLureRegroupSteps
+frontRegroupMargin
+frontRegroupSteps
+fullscreenable
+generation
+getCursorScreenPoint
+getDisplayNearestPoint
+getSize
+getVersion
+globalShortcut
+gm-message
+gmAlerts
+gmLearning
+gmMerge
+gmMessage
+gmMessageProfiles
+gmMessageProfilesJson
+gmMessageRevision
+gmRecord`6
+gm_arrow
+gm_message
+guild-daily.js
+guildDailies
+guildDaily
+guildDailyAutoEnabled
+guildDailyAutoVersion
+guildDailyAvailable
+guildDailyElement
+guildDailyElements
+guildDailyTicketAmount
+guildDailyTicketHotkey
+guildDailyTier
+guildDailyTiers
+guildDailyUseTicket
+guildName
+h2dRX";+pJ
+headers
+healSkill
+healSkillEnabled
+healSkillHpPercent
+healSkillMove
+healer
+healer.js
+healer_config.lua
+healingKeys
+healthPercent
+height
+hiddenByClose
+hidep
+hoenn
+hoenn.js
+hoenn_data.lua
+home`H
+hotkey
+hotkeys
+hpPercent
+identifyCharacter
+importLegacy
+importLegacy`
+importLegacy`.
+incidenta
+index.html
+indispon
+inflateSync
+inspect-brk
+inspection
+inspectorUrl`
+instanceModeEnabled
+ipcDirectoryFromArgs
+ipcDirectoryFromArgs`
+ipcMain
+ipcStatus
+isAlive
+isAttached
+isCurrent
+isDevToolsOpened
+isFocused
+isMinimized
+isOnline
+isPackaged
+isRoute
+isSupported
+isVisible
+itemCounts
+itemId
+itemInspectorAvailable
+jDR0cP#P*
+jLR B
+jpJ8k4"
+k8JPB(*'b
+lPyRw
+labelScripts
+lastReply
+launchClient`j
+launchRequest
+lease
+leasing
+left`J
+lida ou muito grande.
+lida.
+lida. Abra pelo PokeAlliance.exe atualizado. C
+lida. Feche o jogo e abra novamente pelo PokeAlliance.exe atualizado. C
+lidas.
+lido (m
+lido ou maior que 2 MB.
+lido ou muito grande.
+lido ou truncado.
+lido para copiar.
+lido, como minimap854.otmm.
+lido.
+lido. Configure outra tecla.
+lido. Corrija o arquivo ou restaure sua c
+lido`
+lidos para a daily guild.
+lidos.
+lidos. Confira os offsets da DLL.
+loadURL
+loadWalkerProfile
+local
+look-preload.cjs
+look.css
+look.html
+look.js
+lookData`
+lookReady
+lookType
+lookWindow
+looting
+looting.js
+looting_
+lowHpCombo
+lowHpComboPercent
+luaProfile
+luaRevision
+lureDelay
+lureSkill
+lureSkillEnabled
+lureSkillHpPercent
+lureSkillMove
+luring
+luringEnabled
+luringMaxDistance
+m JSON inv
+m tiles repetidos.
+m valores inv
+manual
+map-source.json
+mapInfo
+mapPath
+mapRegion
+maps`h
+maxCaptureDist
+maxDistance
+maxLootDist
+maxOutputLength
+maximizable
+medicineActionBar
+menuHotkey
+menuInstance
+menuInstance`
+menuKey
+menu`
+mero.
+messages.js
+metros n
+migrateTools
+minHeight
+minWidth`
+minimap.otmm
+minimap.png
+minimap854.otmm
+minimizable
+minus
+missingState`
+missions
+mon mudou; aguardando atualiza
+monitor
+monitorEnabled
+monitorState
+monsters
+moveTop
+movement
+movementOwner
+moves
+myPokemon
+nativeError
+nativeImage
+nativeSequence
+nativeStoppedForQuit`
+nativeVerified
+ncia nativa inv
+nextCleanup
+nextConnect
+nicos.
+nimo do lure aleat
+no-store
+no-user-gesture-required
+noTarget
+noTargetShiny
+node:crypto
+node:events
+node:fs
+node:fs/promises
+node:inspector
+node:net
+node:path
+node:timers/promises
+node:url
+node:zlib
+nodeIntegration
+nodes
+normalLookType
+normalizeLuring
+north
+northeast
+northwest
+notice
+numlock
+nuo exige as corre
+o > Atualiza
+o > Estado do bot: 
+o > Vers
+o aceitas (posi
+o antes de continuar.
+o autenticado.
+o com o cliente.
+o confirmou a conex
+o confirmou o pedido em 4 segundos. Confira se o jogo est
+o da DLL. O comando n
+o da hotkey inv
+o de conex
+o de corpos inv
+o de identidade inv
+o de item esperada na action bar.
+o de item inv
+o de mapa inv
+o de outro comando.
+o dispon
+o do bot foi negada. Entre novamente pelo PokeAlliance.exe.
+o do bot. Feche o jogo e abra novamente pelo PokeAlliance.exe. C
+o do bot: Cliente conectado, mas o bot parou de atualizar. Feche o jogo e abra novamente pelo PokeAlliance.exe.
+o do bot: Cliente incompat
+o do personagem para carregar e salvar os perfis.
+o e tente novamente.
+o encontrada.
+o encontrada. A rota atual foi preservada.
+o encontrado.
+o excede 2 MB.
+o executado.
+o existe o arquivo da rota selecionada. Abra Walker e carregue uma rota dispon
+o expirou.
+o foi poss
+o foi reiniciada; confira o cliente antes de enviar outro pedido.
+o indispon
+o inv
+o negada pela DLL
+o ou modo de combate inv
+o pausada antes do envio.
+o pode incluir o centro (0, 0).
+o publicou este estado.
+o publicou o estado do bot. Abra o jogo pelo PokeAlliance.exe.
+o publicou o estado. Feche o jogo e abra novamente pelo PokeAlliance.exe. C
+o recente. Confira se o jogo est
+o reconhecido; valor preservado no arquivo original.
+o salva; ela ser
+o ser
+o suportado.
+o suportados pelo IPC.
+o, no topo do menu.
+o. Feche o jogo e abra novamente pelo PokeAlliance.exe. C
+o/ator do turn inv
+o/cabe
+o; todos os m
+online
+openFile
+openMap
+orderGround
+ownSummonId
+page-title-updated
+pagedown`D
+pageup
+param1
+parameter
+parseLuaData
+pauseAll
+pauseAll`
+pauseAudioPending
+pauseHotkey
+pauseKeyDown
+pauseMonitor
+pausePending`v
+pausedModules
+pendingApply`
+pendingSeq
+perfectingSkillMask
+performanceMode
+persist
+personagem
+phases
+pia de seguran
+pinned
+pinnedTexts
+pixels
+pka-look:close
+pka-look:copy
+pka-look:show
+pka-profile.json
+pka-tools-profile
+pka://app/index.html
+pka://app/look.html
+pka:alert-sound
+pka:alert-state
+pka:closing
+pka:gm-profiles
+pka:notice
+pka:settings
+pka:snapshotf
+playerId
+playerName
+pokeballId
+pokemon
+pokemonName
+pokemon_capture
+pollMs
+poll`
+polling
+potion
+potionHotkey
+preferences
+preferred
+preferredPid
+preload
+preload.cjs
+presentLook
+previousOnline
+printscreen
+privileges
+profileActions
+profileCharacter`T
+profileContext
+profileError`\
+profileName
+profileReady`Z
+profiles
+projectSnapshot
+proof
+protoVersion
+publications
+publishSnapshot
+publisher
+pulseVersion
+queueApply
+queues
+quitf
+quitting`
+randomBytes
+randomEnabled
+randomLureEnabled
+randomLureMaxSeconds
+randomLureMinSeconds
+randomMaxSeconds
+randomMinSeconds
+random_move
+rea da skill cont
+rea da skill n
+readLocal
+readMap
+readPublication
+ready
+recallPokemon
+receive
+recordStepDistance
+recording
+refreshCombo
+refreshScopedShortcuts
+registerSchemesAsPrivileged
+registered
+relaunch
+reload
+remainingMs
+remote-debugging-pipe
+remote-debugging-port
+removeSwitch
+render-process-gone
+renderer
+rendererFailureAt
+rendererFailures
+reply
+reported`
+requestSingleInstanceLock
+requestedCharacter
+requestedPidg
+requireConnecteda
+requirePid
+resetMap
+restore
+resumeMenu
+return 
+revision
+revisiona
+revive
+rgula e espa
+rhb'z
+ria, combo e hotkeys do Target.
+right
+rio deve ser menor ou igual ao m
+rios para iniciar. Feche o jogo e abra novamente pelo PokeAlliance.exe.
+roaming
+roster
+routeProblem`
+routeSignature
+routeSignatures
+routeWarnings
+routes
+ruleIndex
+rules
+runtime
+runtime.jsonl
+runtime.jsonl.previous
+runtimePaused
+runtimeRevision
+safespot
+sandbox
+save`
+schema.js
+scheme
+screen
+screen-saver
+scripts
+scripts.js
+scripts_data.lua
+scrolllock
+second-instance
+secure
+security`f
+sendFrame
+sender
+senderFrame
+sequence
+serialize
+server
+sessionData
+sessions
+setAlwaysOnTop
+setBounds
+setName
+setPath
+setPermissionRequestHandler
+setWindowOpenHandler
+settings
+settings.json
+settingsFile
+settingsQueue
+sha256
+shinyIcon
+shinyLookType
+shinyPriority
+shinyPriorityEnabled
+shortcutActive
+shortcutPolling
+shortcutProblem
+shortcutTools
+shortcuts
+showErrorBox
+showInactive
+showLook`
+showOpenDialog
+showSaveDialog
+showWindow
+signature
+silent
+skipTaskbar
+snapshot
+snapshotH
+snapshotPublisher
+snapshot`
+socket
+soundAsset
+soundAssets
+soundMode
+south
+southeast
+southwest
+space
+speed
+spellword
+stairs
+stale
+staleMs
+stand
+standalone
+startNearestWaypoint
+startedAt
+starting
+startup
+startupCodes
+startupError`l
+startupTimeoutMs
+style.css
+subId
+summonId
+supportFetchAPI
+supportReason
+suspend
+suspended
+switchPokemon
+symbolColor
+syncAudioState
+t*HbDB
+target.js
+targetCreaturesEnabled
+targetId
+targetShinyEnabled
+target_
+target_tab_config.lua
+telemetry
+telemetryError
+tico da daily guild incompat
+tile`
+tiles
+timingSafeEqual
+title
+titleBarOverlay
+titleBarStyle
+toBitmap
+to_poke
+togglePause
+toolKeysa
+tools
+totalMs
+trigger
+uint32
+unconfirmed
+unregisterAll
+updateShortcuts
+useWith
+userData
+userMessage
+uuidG
+uuidHashg
+validPosition
+validateConfig
+validateFields
+vel 4 j
+vel abrir esse mapa. Use um arquivo OTMM v
+vel carregar os perfis de 
+vel carregar os perfis: 
+vel com este menu. Feche o jogo e abra novamente pelo PokeAlliance.exe.
+vel com um perfil Lua.
+vel enviar pelo canal local. Confira a conex
+vel iniciar: a pausa foi acionada durante a conex
+vel ler a rota porque o arquivo est
+vel receber o estado do bot. Feche o jogo e abra novamente pelo PokeAlliance.exe.
+vel recuperar a interface. Feche o menu e abra novamente pelo launcher.
+vel restaurar a escolha do mapa.
+vel restaurar o mapa escolhido; ele est
+vel. A autoriza
+vel. Entre novamente e tente outra vez.
+vel. Entre novamente pelo PokeAlliance.exe.
+vel. Escolha outra tecla.
+vel. Feche o jogo e atualize o bot e o cliente. C
+vel. Reinicie e reinjete.
+vel. Reinicie o cliente e reinjete.
+vel. Usando o mapa padr
+verify
+viewers
+virtualKey
+voice
+walkable
+walkablel
+walker
+walker.js
+walkerIndex
+walkerProfiles
+warnings
+watchClients`
+waypoints
+webContents
+webPreferences
+welcome
+west`
+whenReady
+whitespace
+wildCount
+will-navigate
+will-quit
+window
+window-all-closed
+windowName
+withRoutes
+wk_label_scripts.lua
+workArea
+writableLength
+writePublication
+writePublication`
+writeText
+ximo 80 caracteres).
+ximo.
+zHB8R
+zHKD*
+zTb4RP
+zlBL:
+ztb8+
+{prxZl"0"

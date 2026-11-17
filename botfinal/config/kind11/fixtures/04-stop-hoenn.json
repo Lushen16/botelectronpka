@@ -1,0 +1,13 @@
+{
+  "t": 186922468,
+  "dir": "c2s",
+  "n": 137,
+  "payload": {
+    "protocol": 1,
+    "boot": "f9eb201d542ab313cc3db6b38a880cb4",
+    "client": "2792676ab630975ccad616fb40d6c4a4",
+    "seq": 5,
+    "op": "stop",
+    "module": "hoenn"
+  }
+}

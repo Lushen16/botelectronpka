@@ -5,8 +5,15 @@ const root = path.resolve(__dirname, '..');
 const electron = path.join(root, 'runtime/electron-v44.7.2/electron.exe');
 const env = { ...process.env };
 delete env.ELECTRON_RUN_AS_NODE;
-const tests = fs.readdirSync(path.join(root, 'tests')).filter(name => name.endsWith('.test.cjs'))
-  .map(name => path.join(root, 'tests', name));
+// Testes de DUAS arvores:
+//   tests/           -> runtime/app/engines do reconstruction/
+//   botfinal/tests/  -> motors, arbitro, executor e adaptadores do bot proprio
+// Antes so' tests/ era lido; os 158 testes do botfinal existiam mas nunca
+// rodavam na validacao geral.
+const suites = ['tests', path.join('botfinal', 'tests')];
+const tests = suites.flatMap(dir => fs.readdirSync(path.join(root, dir))
+  .filter(name => name.endsWith('.test.cjs'))
+  .map(name => path.join(root, dir, name)));
 const report = { generatedAt: new Date().toISOString(), node: process.version, steps: [] };
 for (const step of [
   { name: 'build', executable: process.execPath, args: ['tools/build_app.cjs'], env },

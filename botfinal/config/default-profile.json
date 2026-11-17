@@ -1,0 +1,53 @@
+{
+  "target": {
+    "enabled": true,
+    "maxDistance": 8,
+    "priorityMode": "highestPriorityList",
+    "shinyPriorityEnabled": true,
+    "ignoredCreaturesText": "",
+    "monsters": [
+      {
+        "name": "*",
+        "range": 8,
+        "minCount": 1
+      }
+    ],
+    "combo": {
+      "enabled": true,
+      "useNativeSequence": true,
+      "sequenceText": "m1, m2, m3, m4, m5, m6, m7, m8",
+      "lureDelay": 200,
+      "stepDelay": 350,
+      "finishRemainingCount": 0
+    },
+    "autoRevive": {
+      "enabled": true,
+      "hotkey": "F8",
+      "interval": 1500,
+      "waitForPokemon": true
+    }
+  },
+  "walker": {
+    "enabled": true,
+    "waypoints": []
+  },
+  "healer": {
+    "enabled": true,
+    "healHpPercent": 60,
+    "healPokemonName": "",
+    "healMoveSlot": 1,
+    "healResetSlot": 0,
+    "returnPokemonName": "",
+    "cooldownMs": 1000
+  },
+  "hoenn": {
+    "minWildsToEngage": 0,
+    "perfectLure": false,
+    "potionHpPercent": 60,
+    "potionHotkey": "Alt+f",
+    "potionActionBar": 3,
+    "potionCooldownMs": 1500,
+    "useMedicine": true,
+    "medicineHotkey": "E"
+  }
+}

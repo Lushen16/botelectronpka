@@ -1,4 +1,4 @@
-﻿const { app, BrowserWindow, ipcMain, protocol, net, clipboard, dialog, session, globalShortcut } = require('electron');
+const { app, BrowserWindow, ipcMain, protocol, net, clipboard, dialog, session, globalShortcut } = require('electron');
 const fs = require('node:fs');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
@@ -19,6 +19,8 @@ const { SettingsStore, validateConfig, MAX_BYTES } = require('../settings.cjs');
 const os = require('node:os');
 const { OtmmReader } = require('../otmm.cjs');
 const root = path.resolve(__dirname, '../..');
+require(path.join(root, 'extracted_v3.3.1/bytecode-runtime.cjs'));
+const configSharing = require(path.join(root, 'extracted_v3.3.1/lib/config-sharing.jsc'));
 const smoke = process.argv.includes('--smoke');
 const audit = process.argv.includes('--audit');
 // Diagnostics mode enables the separate `pkaDiag` surface (local simulation).
@@ -31,6 +33,8 @@ let window;
 let closing = false;
 const failures = [];
 const liveAudit = process.argv.includes('--live-ui-audit');
+// Auditoria ao vivo pelo CANAL NATIVO (o caminho de producao), nao pela simulacao.
+const liveChannelAudit = process.argv.includes('--live-channel-audit');
 const liveAuditErrors = [];
 const SNAPSHOT_FILE = path.resolve(root, process.env.PKA_SESSION_FILE || 'live-snapshot.json');
 const PROVIDER = path.join(root, 'tools', 'pka_live_session.py');
@@ -136,7 +140,8 @@ function providerStatus(value) {
 
 function startCreatureProvider(python, pid, playerName) {
   if (process.env.PKA_CREATURES_FILE || creatureProvider
-      || typeof playerName !== 'string' || !playerName.trim()) return;
+      || typeof playerName !== 'string' || !playerName.trim()
+      || !Number.isInteger(pid) || pid <= 0) return;
   const identity = JSON.stringify([pid, playerName.trim()]);
   if (creatureProviderAttempt === identity) return;
   creatureProviderAttempt = identity;
@@ -145,12 +150,15 @@ function startCreatureProvider(python, pid, playerName) {
     '--output', CREATURES_FILE], { cwd: root, windowsHide: true, stdio: ['ignore', 'ignore', 'pipe'] });
   creatureProvider = child;
   child.stderr.on('data', value => console.error('creature scanner:', value.toString().trim()));
-  child.on('error', error => console.error('creature scanner:', error.message));
+  child.on('error', error => {
+    console.error('creature scanner:', error.message);
+    if (creatureProvider === child) { creatureProvider = null; creatureProviderAttempt = null; }
+  });
   child.on('exit', code => {
     console.error('creature scanner exit:', code);
     if (creatureProvider === child) {
       creatureProvider = null;
-      creatureProviderAttempt = null;
+      setTimeout(() => { if (creatureProviderAttempt === identity) creatureProviderAttempt = null; }, 10000);
     }
   });
 }
@@ -171,7 +179,7 @@ function startItemProvider(python, pid, playerName) {
     console.error('item scanner exit:', code);
     if (itemProvider === child) {
       itemProvider = null;
-      itemProviderAttempt = null;
+      setTimeout(() => { if (itemProviderAttempt === identity) itemProviderAttempt = null; }, 60000);
     }
   });
 }
@@ -319,7 +327,13 @@ const ready = app.whenReady().then(async () => {
     openAdapter: options => (simEnabled ? simulation.open(options) : nativeAdapter.open(options)),
   });
   monitor = createMonitorRuntime({
-    getSession: () => controller?.sessions?.[0] || null,
+    // A sessao tem que vir do backend ATIVO: no canal nativo ela esta no adapter
+    // (EngineRuntime.sessions); no backend keyboard, no provider RPM. Ler sempre
+    // o provider deixava o monitor sem sessao quando o canal nativo esta em uso.
+    getSession: () => {
+      const own = keyboardBackend ? null : engineRuntime?.sessions?.[0];
+      return own || controller?.sessions?.[0] || null;
+    },
     send: (channel, value) => { if (window && !window.isDestroyed()) window.webContents.send(channel, value); },
     onPause: () => { void engineRuntime?.pause().catch(() => {}); },
   });
@@ -412,6 +426,33 @@ const ready = app.whenReady().then(async () => {
       fs.writeFileSync(result.filePath, JSON.stringify({ format: 'pka-reconstruction-1', config: normalized }, null, 2) + '\n', 'utf8');
       return true;
     },
+    exportSharedProfile: async (config, options, profileName) => {
+      const active = store.snapshot().profiles.find(p => p.name === (profileName || store.snapshot().activeProfile));
+      const conf = config || active?.config;
+      const res = await configSharing.exportSharedConfig(conf, options, routeStore);
+      if (res?.text) {
+        clipboard.writeText(res.text);
+        res.copied = true;
+      }
+      return res;
+    },
+    inspectSharedProfile: (text, profileName) => {
+      const decoded = configSharing.decodeSharedConfig(text);
+      return configSharing.shareSummary(decoded);
+    },
+    importSharedProfile: async (text, profileName) => {
+      const active = store.snapshot().profiles.find(p => p.name === (profileName || store.snapshot().activeProfile));
+      const baseConf = active?.config || validateConfig({});
+      const merged = configSharing.mergeSharedConfig(text, baseConf);
+      if (merged?.route && routeStore) {
+        const routeName = merged.route.name || 'Importado';
+        await routeStore.save(routeName, merged.config, { waypoints: merged.route.waypoints });
+      }
+      return merged.config;
+    },
+    clearAlertHistory: () => true,
+    copyAlertHistory: () => true,
+    guildDailyReset: () => ({ accepted: true }),
   });
   window = new BrowserWindow({ width: 1180, height: 880, show: !smoke && !audit,
     title: 'PKA Tools - reconstrucao local',
@@ -518,6 +559,32 @@ const ready = app.whenReady().then(async () => {
     stopLiveProvider();
     window.destroy();
     app.quit();
+    return;
+  }
+  if (liveChannelAudit) {
+    // Exige o canal nativo: sem PKA_CHANNEL_KEY(_FILE) o runtime seria o keyboard
+    // e a medicao nao seria do caminho de producao.
+    if (keyboardWalker || simEnabled) {
+      throw Error('Live channel audit requires the native channel (PKA_CHANNEL_KEY_FILE).');
+    }
+    let report;
+    try {
+      report = await require('./live-channel-audit.cjs').runLiveChannelAudit(window, engineRuntime,
+        { pid: livePid || Number(process.env.PKA_PID) || 0 });
+    } catch (error) {
+      report = { ok: false, crash: error.message, checks: [], required: [] };
+    }
+    if (!report || typeof report !== 'object') {
+      report = { ok: false, crash: 'auditoria nao devolveu relatorio', checks: [], required: [] };
+    }
+    report.ipcErrors = liveAuditErrors;
+    report.failures = failures;
+    fs.writeFileSync(path.join(root, 'live-channel-audit.json'), JSON.stringify(report, null, 2) + '\n');
+    monitor.close();
+    await engineRuntime.close();
+    stopLiveProvider();
+    window.destroy();
+    app.exit(report.ok === true && failures.length === 0 && liveAuditErrors.length === 0 ? 0 : 1);
     return;
   }
   if (smoke) {

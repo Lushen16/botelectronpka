@@ -133,6 +133,19 @@ class Transport extends EventEmitter {
       this.emit('ack', ack);
       return;
     }
+    if (item.kind === KIND.automation) {
+      /* kind 6 (s2c): estado de automacao publicado pelo servidor. O fornecedor
+       * manda modules/monitor/core/luring; o NOSSO servidor acrescenta
+       * `capabilities` (extensao `pka-capabilities`, ver capabilities.cjs).
+       * Este canal era ignorado: caia em `emit('frame')` sem listener. */
+      let body = null;
+      try { body = JSON.parse(item.payload.toString('utf8')); } catch { body = null; }
+      this.emit('automation', body);
+      if (body && typeof body === 'object' && body.capabilities !== undefined) {
+        this.emit('declaration', body.capabilities);
+      }
+      return;
+    }
     if (item.kind === KIND.automation_revoked) {
       this.emit('automation-revoked', item.payload.toString('utf8'));
       return;
@@ -153,6 +166,29 @@ class Transport extends EventEmitter {
   sendFrame(kind, payload) {
     if (!this.authenticated) fail('Canal nao autenticado.');
     this.write(kind, payload);
+  }
+
+  /**
+   * Espera o buffer de escrita esvaziar.
+   *
+   * `write()` do socket e' assincrono: fechar logo depois do sendFrame pode
+   * descartar bytes que ainda estavam na fila. O kind 11 nao tem ACK, entao
+   * "sem ACK" e "nao chegou" sao indistinguiveis do lado do cliente — tem que
+   * drenar antes de sair.
+   */
+  flush(timeoutMs = 2000) {
+    const socket = this.socket;
+    if (!socket || this.closed) return Promise.resolve(false);
+    return new Promise(resolve => {
+      const started = Date.now();
+      const check = () => {
+        if (!this.socket || this.closed) { resolve(false); return; }
+        if (socket.writableLength === 0) { resolve(true); return; }
+        if (Date.now() - started >= timeoutMs) { resolve(false); return; }
+        setTimeout(check, 5);
+      };
+      check();
+    });
   }
 
   sendCommand(name, parameter, options = {}) {

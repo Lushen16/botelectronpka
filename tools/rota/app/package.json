@@ -1,0 +1,7 @@
+{
+  "name": "pka-rota",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Interface de desenho de rota e teste de combate para o PokeAlliance",
+  "main": "main.cjs"
+}

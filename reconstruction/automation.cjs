@@ -4,7 +4,7 @@ const { ready, runtimeMismatch, isPosition, distance, normalizeName, ignoredName
 const { createWalkerEngine } = require('./engines/walker-engine.cjs');
 const { createTargetEngine } = require('./engines/target-engine.cjs');
 const { createHealerEngine } = require('./engines/healer-engine.cjs');
-const { createLureEngine } = require('./engines/lure-engine.cjs');
+const { createLureEngine, normalizeLuring } = require('./engines/lure-engine.cjs');
 const { encodeCommand } = require('./protocol.cjs');
 const { mergeCreatureSnapshot } = require('../tools/creature_bridge.cjs');
 
@@ -22,6 +22,10 @@ function gateReason(snapshot) {
   if (telemetry.pulseVersion !== 3) return 'pulse-version';
   if (!telemetry.position) return 'no-position';
   if (runtimeMismatch(session)) return 'runtime-pid';
+  /* Gate do runtime (adendo 6): `false` = personagem no menu, sem mapa ativo.
+   * `Game::walk` executa e nao move ninguem; ataque recusa com gate[+0x2668]=0.
+   * `undefined` = DLL antiga sem o campo: nao bloqueia. */
+  if (session.runtimeReady === false || telemetry.runtimeReady === false) return 'runtime-not-ready';
   return null;
 }
 
@@ -64,7 +68,7 @@ function createAutomation(config, options = {}) {
   }
   const engineSettings = hunt ? { ...config,
     target: { ...config.target, healSkill: { enabled: false }, lureSkill: { enabled: false } },
-    hoenn: { ...config.hoenn, perfectLure: false },
+    hoenn: { ...config.hoenn, perfectLure: false, minWildsToEngage: 0 },
   } : config;
   const clock = typeof options.now === 'function' ? options.now : () => Date.now();
   const walker = createWalkerEngine(config);
@@ -75,6 +79,34 @@ function createAutomation(config, options = {}) {
   } : config, { switchBeforeHeal: Boolean(hunt) });
   const lure = createLureEngine(config, options);
   const state = { ticks: 0, last: null, lastHotkeyAt: null, recovering: false, revive: null };
+
+  /* ─── CONTEXTO DE LURE PARA O TARGET ───
+   *
+   * BUG CORRIGIDO (auditoria G01, defeito B.4): aqui ia
+   *     luring: config?.target?.luring?.enabled === true
+   * mas `lure-engine` deriva o modo por PRECEDENCIA:
+   *     randomEnabled → 'random' | frontEnabled → 'dynamic'
+   *     enabled → 'distance'     | senao → 'off'
+   * Com `frontEnabled: true` e `enabled: false` (a config real) o lure roda
+   * em 'dynamic' e o Target recebia `luring: false` — entao `lureSkill`
+   * (buff ao lurar) nunca era emitido pelo caminho nativo.
+   *
+   * SEMANTICA ESCOLHIDA: o contexto significa MODO DE LURE CONFIGURADO (o
+   * modelo/fase que o motor vai executar), nao a fase do tick corrente.
+   * Evidencia:
+   *   1. `lureSkill` vem de `m()` no schema do fornecedor, que o rotula
+   *      "Buff ao lurar" — o buff acompanha o MODO ativo, nao uma fase.
+   *   2. `normalizeLuring()` (lure-engine.cjs:28) e' a fonte unica do modo e
+   *      e' PURA: nao emite, nao consome cooldown, nao muda `state`.
+   *   3. A ordem do tick impede ler a fase: `target.step` roda (linha ~213)
+   *      ANTES de `lure.step` (~224). Passar a fase exigiria antecipar os
+   *      efeitos do lure so' para descobrir o estado — proibido pela missao.
+   *
+   * Portanto: derivar o modo com a MESMA funcao que o lure usa, e considerar
+   * "lurando" quando o modo nao e' 'off'. Isso preserva a precedencia
+   * random > dynamic > distance sem duplicar a regra. */
+  const lureMode = normalizeLuring(config).mode;
+  const lureActive = lureMode !== 'off';
 
   function blocked(reason, error) {
     target.clearTarget();
@@ -207,7 +239,7 @@ function createAutomation(config, options = {}) {
     if (capture) { state.last = capture; return capture; }
     if (!enabled('target')) target.clearTarget();
     const fight = !enabled('target') ? { action: 'idle', emitted: [] } : target.step(telemetry, output, now, {
-      luring: config?.target?.luring?.enabled === true, hotkeysBlocked,
+      luring: lureActive, hotkeysBlocked,
     });
     const revive = reviveStep(telemetry, output, now);
     if (revive) {
@@ -220,7 +252,10 @@ function createAutomation(config, options = {}) {
       if (enabled('target')) lureResult = lure.step(telemetry, output, now);
       if (!enabled('walker')) walk = { action: 'disabled', emitted: [] };
       else if (lureResult.allowMovement) walk = walker.step(telemetry, output, now);
-      else walk = { action: 'held', emitted: [], reason: 'lure-hold' };
+      else {
+        walker.notifySkipped();
+        walk = { action: 'held', emitted: [], reason: 'lure-hold' };
+      }
     }
     state.last = {
       status: fight.action === 'idle' && !enabled('walker') ? 'idle'

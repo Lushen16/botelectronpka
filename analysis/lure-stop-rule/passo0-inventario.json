@@ -1,0 +1,107 @@
+[
+ {
+  "file": "native/pka_tap_14784.jsonl",
+  "exists": true,
+  "records": 2235,
+  "kinds": {
+   "4": 1729,
+   "6": 506
+  },
+  "dirs": {
+   "s2c": 2235
+  },
+  "tMin": 41718156,
+  "tMax": 41826171,
+  "spanMs": 108015,
+  "k6count": 506,
+  "firstK6Ts": 41718156,
+  "lastK6Ts": 41825984,
+  "mb": 1.1
+ },
+ {
+  "file": "native/pka_tap_17748.jsonl",
+  "exists": true,
+  "records": 138863,
+  "kinds": {
+   "4": 92980,
+   "5": 2296,
+   "6": 34018,
+   "11": 2,
+   "12": 9567
+  },
+  "dirs": {
+   "s2c": 129294,
+   "c2s": 9569
+  },
+  "tMin": 43038562,
+  "tMax": 48856859,
+  "spanMs": 5818297,
+  "k6count": 34018,
+  "firstK6Ts": 43038578,
+  "lastK6Ts": 48856796,
+  "mb": 454.1
+ },
+ {
+  "file": "native/pka_tap_19228.jsonl",
+  "exists": true,
+  "records": 127790,
+  "kinds": {
+   "4": 91813,
+   "5": 2296,
+   "6": 33681
+  },
+  "dirs": {
+   "c2s": 127790
+  },
+  "tMin": 43112500,
+  "tMax": 48857781,
+  "spanMs": 5745281,
+  "k6count": 33681,
+  "firstK6Ts": 43112656,
+  "lastK6Ts": 48857781,
+  "mb": 450.4
+ },
+ {
+  "file": "native/pka_tap_8036.jsonl",
+  "exists": true,
+  "records": 171781,
+  "kinds": {
+   "4": 111150,
+   "5": 9222,
+   "6": 37702,
+   "11": 20,
+   "12": 13687
+  },
+  "dirs": {
+   "s2c": 158074,
+   "c2s": 13707
+  },
+  "tMin": 186863937,
+  "tMax": 193814281,
+  "spanMs": 6950344,
+  "k6count": 37702,
+  "firstK6Ts": 186863968,
+  "lastK6Ts": 193814281,
+  "mb": 577.1
+ },
+ {
+  "file": "native/pka_tap_33524.jsonl",
+  "exists": true,
+  "records": 158067,
+  "kinds": {
+   "4": 111148,
+   "5": 9221,
+   "6": 37698
+  },
+  "dirs": {
+   "c2s": 158067
+  },
+  "tMin": 186864562,
+  "tMax": 193814265,
+  "spanMs": 6949703,
+  "k6count": 37698,
+  "firstK6Ts": 186864562,
+  "lastK6Ts": 193814078,
+  "mb": 572.8
+ }
+]

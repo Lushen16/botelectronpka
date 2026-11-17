@@ -1,0 +1,499 @@
+{
+ "generatedAt": "2026-11-11T19:53:30.545Z",
+ "input": "snapshot-17748-2026-11-11T1411.jsonl",
+ "definitions": {
+  "maxAgeMs": 600,
+  "entry": "transicao observada false->true",
+  "excluded": "o frame da propria transicao",
+  "sample": "kind6 anterior no mesmo episodio E dentro da janela E com count valido",
+  "coveredFromStart": "existe amostra valida em t <= (entryT - window) no mesmo episodio",
+  "rose": "pelo menos um aumento entre amostras consecutivas validas na janela",
+  "testable": ">= 2 amostras anteriores validas na janela"
+ },
+ "volume": {
+  "framesInLure": 24011,
+  "episodes": 1576,
+  "entries": 155
+ },
+ "windows": {
+  "200": {
+   "windowMs": 200,
+   "entries": 155,
+   "prev0": 26,
+   "prev1": 121,
+   "prev2plus": 8,
+   "coveredFromStart": 154,
+   "atBoundaryCount": 154,
+   "withAtLeast2": 8,
+   "rose": 1,
+   "denominatorTestable": 8,
+   "roseRate": 0.125,
+   "control": {
+    "entriesMatched": 8,
+    "frames": 1,
+    "rose": 0,
+    "denominator": 1,
+    "roseRate": 0,
+    "note": "frames holding=false, mesmo episodio, mesmo count da entrada, mesma exigencia de >=2 amostras anteriores"
+   },
+   "deltaPercentagePoints": 12.5,
+   "stratified": {
+    "bySamples": {
+     "0": {
+      "entries": 0,
+      "entriesRose": 0,
+      "entriesRate": null,
+      "controls": 13485,
+      "controlsRose": 0,
+      "controlsRate": 0
+     },
+     "1": {
+      "entries": 0,
+      "entriesRose": 0,
+      "entriesRate": null,
+      "controls": 9154,
+      "controlsRose": 0,
+      "controlsRate": 0
+     },
+     "2": {
+      "entries": 8,
+      "entriesRose": 1,
+      "entriesRate": 0.125,
+      "controls": 578,
+      "controlsRose": 85,
+      "controlsRate": 0.1471
+     },
+     "3": {
+      "entries": 0,
+      "entriesRose": 0,
+      "entriesRate": null,
+      "controls": 256,
+      "controlsRose": 15,
+      "controlsRate": 0.0586
+     }
+    },
+    "pooled": {
+     "entriesRose": 1,
+     "entriesDenom": 8,
+     "entriesRate": 0.125,
+     "controlsRose": 85,
+     "controlsDenom": 578,
+     "controlsRate": 0.1471,
+     "deltaPercentagePoints": -2.21,
+     "note": "pondera pelo tamanho do grupo; estrato n=3 domina os controles"
+    },
+    "standardized": {
+     "formula": "sum_estrato ( (n_entradas_estrato / N_entradas) * (taxa_entradas - taxa_controles) )",
+     "deltaPercentagePoints": -2.21,
+     "weightsBasis": "distribuicao das 155 entradas"
+    },
+    "note": "os dois estimadores NAO sao intercambiaveis; o padronizado e o"
+   },
+   "stability": {
+    "prevOnly": 7,
+    "includingEntry": 4,
+    "note": "prevOnly e o correto para o teste de historico; includingEntry conta o proprio frame da transicao e nao deve ser usado como predicado"
+   },
+   "controlAccounting": {
+    "allControls": 23473,
+    "withAtLeast2": 834,
+    "inPooled": 578,
+    "excludedFromPooled": [
+     {
+      "samples": 0,
+      "controls": 13485
+     },
+     {
+      "samples": 1,
+      "controls": 9154
+     },
+     {
+      "samples": 3,
+      "controls": 256
+     }
+    ],
+    "note": "pooled so inclui estratos com pelo menos 1 entrada; estratos com controles e zero entradas ficam de fora (n=7 e n=8)"
+   },
+   "fullCoverage": {
+    "entries": 7,
+    "controls": 297,
+    "bySamples": {
+     "2": {
+      "entries": 7,
+      "entriesRose": 1,
+      "controls": 263,
+      "controlsRose": 85
+     },
+     "3": {
+      "entries": 0,
+      "entriesRose": 0,
+      "controls": 34,
+      "controlsRose": 15
+     }
+    },
+    "standardizedDeltaPercentagePoints": -18.03,
+    "note": "entradas E controles exigem >=2 amostras E cobertura desde o inicio da janela; padronizado pela distribuicao das entradas restantes"
+   }
+  },
+  "400": {
+   "windowMs": 400,
+   "entries": 155,
+   "prev0": 0,
+   "prev1": 10,
+   "prev2plus": 145,
+   "coveredFromStart": 149,
+   "atBoundaryCount": 149,
+   "withAtLeast2": 145,
+   "rose": 24,
+   "denominatorTestable": 145,
+   "roseRate": 0.1655,
+   "control": {
+    "entriesMatched": 145,
+    "frames": 692,
+    "rose": 101,
+    "denominator": 692,
+    "roseRate": 0.146,
+    "note": "frames holding=false, mesmo episodio, mesmo count da entrada, mesma exigencia de >=2 amostras anteriores"
+   },
+   "deltaPercentagePoints": 2,
+   "stratified": {
+    "bySamples": {
+     "0": {
+      "entries": 0,
+      "entriesRose": 0,
+      "entriesRate": null,
+      "controls": 1554,
+      "controlsRose": 0,
+      "controlsRate": 0
+     },
+     "1": {
+      "entries": 0,
+      "entriesRose": 0,
+      "entriesRate": null,
+      "controls": 6591,
+      "controlsRose": 0,
+      "controlsRate": 0
+     },
+     "2": {
+      "entries": 76,
+      "entriesRose": 8,
+      "entriesRate": 0.1053,
+      "controls": 12817,
+      "controlsRose": 1819,
+      "controlsRate": 0.1419
+     },
+     "3": {
+      "entries": 51,
+      "entriesRose": 10,
+      "entriesRate": 0.1961,
+      "controls": 2118,
+      "controlsRose": 653,
+      "controlsRate": 0.3083
+     },
+     "4": {
+      "entries": 15,
+      "entriesRose": 4,
+      "entriesRate": 0.2667,
+      "controls": 364,
+      "controlsRose": 97,
+      "controlsRate": 0.2665
+     },
+     "5": {
+      "entries": 3,
+      "entriesRose": 2,
+      "entriesRate": 0.6667,
+      "controls": 27,
+      "controlsRose": 10,
+      "controlsRate": 0.3704
+     },
+     "6": {
+      "entries": 0,
+      "entriesRose": 0,
+      "entriesRate": null,
+      "controls": 2,
+      "controlsRose": 1,
+      "controlsRate": 0.5
+     }
+    },
+    "pooled": {
+     "entriesRose": 24,
+     "entriesDenom": 145,
+     "entriesRate": 0.1655,
+     "controlsRose": 2579,
+     "controlsDenom": 15326,
+     "controlsRate": 0.1683,
+     "deltaPercentagePoints": -0.28,
+     "note": "pondera pelo tamanho do grupo; estrato n=3 domina os controles"
+    },
+    "standardized": {
+     "formula": "sum_estrato ( (n_entradas_estrato / N_entradas) * (taxa_entradas - taxa_controles) )",
+     "deltaPercentagePoints": -5.25,
+     "weightsBasis": "distribuicao das 155 entradas"
+    },
+    "note": "os dois estimadores NAO sao intercambiaveis; o padronizado e o"
+   },
+   "stability": {
+    "prevOnly": 121,
+    "includingEntry": 74,
+    "note": "prevOnly e o correto para o teste de historico; includingEntry conta o proprio frame da transicao e nao deve ser usado como predicado"
+   },
+   "controlAccounting": {
+    "allControls": 23473,
+    "withAtLeast2": 15328,
+    "inPooled": 15326,
+    "excludedFromPooled": [
+     {
+      "samples": 0,
+      "controls": 1554
+     },
+     {
+      "samples": 1,
+      "controls": 6591
+     },
+     {
+      "samples": 6,
+      "controls": 2
+     }
+    ],
+    "note": "pooled so inclui estratos com pelo menos 1 entrada; estratos com controles e zero entradas ficam de fora (n=7 e n=8)"
+   },
+   "fullCoverage": {
+    "entries": 139,
+    "controls": 13148,
+    "bySamples": {
+     "2": {
+      "entries": 73,
+      "entriesRose": 8,
+      "controls": 11291,
+      "controlsRose": 1818
+     },
+     "3": {
+      "entries": 49,
+      "entriesRose": 10,
+      "controls": 1691,
+      "controlsRose": 618
+     },
+     "4": {
+      "entries": 14,
+      "entriesRose": 4,
+      "controls": 144,
+      "controlsRose": 59
+     },
+     "5": {
+      "entries": 3,
+      "entriesRose": 2,
+      "controls": 20,
+      "controlsRose": 8
+     },
+     "6": {
+      "entries": 0,
+      "entriesRose": 0,
+      "controls": 2,
+      "controlsRose": 1
+     }
+    },
+    "standardizedDeltaPercentagePoints": -9.06,
+    "note": "entradas E controles exigem >=2 amostras E cobertura desde o inicio da janela; padronizado pela distribuicao das entradas restantes"
+   }
+  },
+  "600": {
+   "windowMs": 600,
+   "entries": 155,
+   "prev0": 0,
+   "prev1": 0,
+   "prev2plus": 155,
+   "coveredFromStart": 143,
+   "atBoundaryCount": 143,
+   "withAtLeast2": 155,
+   "rose": 47,
+   "denominatorTestable": 155,
+   "roseRate": 0.3032,
+   "control": {
+    "entriesMatched": 155,
+    "frames": 1075,
+    "rose": 200,
+    "denominator": 1075,
+    "roseRate": 0.186,
+    "note": "frames holding=false, mesmo episodio, mesmo count da entrada, mesma exigencia de >=2 amostras anteriores"
+   },
+   "deltaPercentagePoints": 11.7,
+   "stratified": {
+    "bySamples": {
+     "0": {
+      "entries": 0,
+      "entriesRose": 0,
+      "entriesRate": null,
+      "controls": 1554,
+      "controlsRose": 0,
+      "controlsRate": 0
+     },
+     "1": {
+      "entries": 0,
+      "entriesRose": 0,
+      "entriesRate": null,
+      "controls": 1571,
+      "controlsRose": 0,
+      "controlsRate": 0
+     },
+     "2": {
+      "entries": 12,
+      "entriesRose": 0,
+      "entriesRate": 0,
+      "controls": 4569,
+      "controlsRose": 253,
+      "controlsRate": 0.0554
+     },
+     "3": {
+      "entries": 74,
+      "entriesRose": 18,
+      "entriesRate": 0.2432,
+      "controls": 12169,
+      "controlsRose": 3039,
+      "controlsRate": 0.2497
+     },
+     "4": {
+      "entries": 43,
+      "entriesRose": 19,
+      "entriesRate": 0.4419,
+      "controls": 3115,
+      "controlsRose": 1168,
+      "controlsRate": 0.375
+     },
+     "5": {
+      "entries": 18,
+      "entriesRose": 7,
+      "entriesRate": 0.3889,
+      "controls": 435,
+      "controlsRose": 183,
+      "controlsRate": 0.4207
+     },
+     "6": {
+      "entries": 8,
+      "entriesRose": 3,
+      "entriesRate": 0.375,
+      "controls": 46,
+      "controlsRose": 29,
+      "controlsRate": 0.6304
+     },
+     "7": {
+      "entries": 0,
+      "entriesRose": 0,
+      "entriesRate": null,
+      "controls": 10,
+      "controlsRose": 7,
+      "controlsRate": 0.7
+     },
+     "8": {
+      "entries": 0,
+      "entriesRose": 0,
+      "entriesRate": null,
+      "controls": 4,
+      "controlsRose": 3,
+      "controlsRate": 0.75
+     }
+    },
+    "pooled": {
+     "entriesRose": 47,
+     "entriesDenom": 155,
+     "entriesRate": 0.3032,
+     "controlsRose": 4672,
+     "controlsDenom": 20334,
+     "controlsRate": 0.2298,
+     "deltaPercentagePoints": 7.35,
+     "note": "pondera pelo tamanho do grupo; estrato n=3 domina os controles"
+    },
+    "standardized": {
+     "formula": "sum_estrato ( (n_entradas_estrato / N_entradas) * (taxa_entradas - taxa_controles) )",
+     "deltaPercentagePoints": -0.57,
+     "weightsBasis": "distribuicao das 155 entradas"
+    },
+    "note": "os dois estimadores NAO sao intercambiaveis; o padronizado e o"
+   },
+   "stability": {
+    "prevOnly": 102,
+    "includingEntry": 68,
+    "note": "prevOnly e o correto para o teste de historico; includingEntry conta o proprio frame da transicao e nao deve ser usado como predicado"
+   },
+   "controlAccounting": {
+    "allControls": 23473,
+    "withAtLeast2": 20348,
+    "inPooled": 20334,
+    "excludedFromPooled": [
+     {
+      "samples": 0,
+      "controls": 1554
+     },
+     {
+      "samples": 1,
+      "controls": 1571
+     },
+     {
+      "samples": 7,
+      "controls": 10
+     },
+     {
+      "samples": 8,
+      "controls": 4
+     }
+    ],
+    "note": "pooled so inclui estratos com pelo menos 1 entrada; estratos com controles e zero entradas ficam de fora (n=7 e n=8)"
+   },
+   "fullCoverage": {
+    "entries": 143,
+    "controls": 15973,
+    "bySamples": {
+     "2": {
+      "entries": 9,
+      "entriesRose": 0,
+      "controls": 3043,
+      "controlsRose": 252
+     },
+     "3": {
+      "entries": 72,
+      "entriesRose": 18,
+      "controls": 10681,
+      "controlsRose": 2920
+     },
+     "4": {
+      "entries": 37,
+      "entriesRose": 16,
+      "controls": 2023,
+      "controlsRose": 967
+     },
+     "5": {
+      "entries": 17,
+      "entriesRose": 7,
+      "controls": 177,
+      "controlsRose": 104
+     },
+     "6": {
+      "entries": 8,
+      "entriesRose": 3,
+      "controls": 35,
+      "controlsRose": 23
+     },
+     "7": {
+      "entries": 0,
+      "entriesRose": 0,
+      "controls": 10,
+      "controlsRose": 7
+     },
+     "8": {
+      "entries": 0,
+      "entriesRose": 0,
+      "controls": 4,
+      "controlsRose": 3
+     }
+    },
+    "standardizedDeltaPercentagePoints": -6.55,
+    "note": "entradas E controles exigem >=2 amostras E cobertura desde o inicio da janela; padronizado pela distribuicao das entradas restantes"
+   }
+  }
+ },
+ "viability": {
+  "denominator600": 155,
+  "threshold": 30,
+  "viable": true,
+  "conclusion": "ha cobertura suficiente para testar associacao na janela de 600 ms"
+ }
+}

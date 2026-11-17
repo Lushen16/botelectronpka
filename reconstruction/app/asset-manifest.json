@@ -129,8 +129,8 @@
     },
     {
       "path": "alert-audio.js",
-      "original": "renderer/alert-audio.js",
-      "sha256": "78ec9d505606f829651f26a303f3c9ae081cbabdf98706ed73849f165fd075d7",
+      "original": "extracted_v3.3.1/renderer/alert-audio.js",
+      "sha256": "76a19ea984c94445c907f3a43f6a8e8be65b96986776ac5d55acf7bca1769899",
       "original_sha256": "78ec9d505606f829651f26a303f3c9ae081cbabdf98706ed73849f165fd075d7",
       "preserved": false
     },
@@ -144,7 +144,7 @@
     {
       "path": "app.js",
       "original": "renderer/app.js",
-      "sha256": "e82e745dd8173473b16d2c78c2a37a8d66b4081a02eda76508dec542c042cf0d",
+      "sha256": "bd43fd4da1bcc2405e06c6d6f82beb37ca577e58c377faa60cf20fa55f18d298",
       "original_sha256": "34a2ee7a0448a92de386d808e326bb02f6500c6b583903a8b6d5b7e9be4e679f",
       "preserved": true
     },
@@ -172,7 +172,7 @@
     {
       "path": "index.html",
       "original": "renderer/index.html",
-      "sha256": "299148892ecac1b859d03ebf1bd26bbd233c72f835b034c33e2c20dcc755829f",
+      "sha256": "5e0aeee2ec4d76e814c1489dce6d66a51b7bb5dce0990357579380a4f8812f32",
       "original_sha256": "1b7f950af832d5ae2deb58b9e3ada2163877931c5afbf5cb57f7d02209701fcc",
       "preserved": true
     },
@@ -235,9 +235,9 @@
     {
       "path": "walker.js",
       "original": "renderer/walker.js",
-      "sha256": "0477e45699d9ed3e18ba5b5588aaa3f7c58fb3d0d7e4b7a2be47b90c36e2960c",
+      "sha256": "73fa32436e0682c0191d19bd668dd57c2517df1252874730b485c53fb45a6338",
       "original_sha256": "e31a24c15e31503a0291fdee8ed88b5b6e766c081f357b22436753453d030df2",
-      "preserved": false
+      "preserved": true
     },
     {
       "path": "alerts-model.js",
@@ -249,9 +249,9 @@
     {
       "path": "diagnostics.js",
       "original": "shared/diagnostics.js",
-      "sha256": "c1841b31ce41cf7519b1c702e5f1c79e86147a5c2bef00297223f468e795ecab",
+      "sha256": "6140e309cb6b4d06b2b8054972f59d156dd1943668bf30806dcb95881ae79f18",
       "original_sha256": "55e6fecf001a9bbb0b4fda5fb239e876a070906a9c661accd7d3492248435f97",
-      "preserved": false
+      "preserved": true
     },
     {
       "path": "healer-model.js",
@@ -277,7 +277,7 @@
     {
       "path": "schema.js",
       "original": "shared/schema.js",
-      "sha256": "4c2c90f32546b8ac6cfcb2c3bb2b061091e75d39efb6f03ba4b60590ddcd4023",
+      "sha256": "dd413e3f810a5860291e1347bdf10b7183cfc7f09bf76c7ed94b5e3d71ed220f",
       "original_sha256": "8aa0fe77cbb90fa27ef132b20abf0951de0ba3e08fe81dd0d9f6e74be439e915",
       "preserved": true
     },
@@ -293,6 +293,13 @@
       "original": null,
       "preserved": true,
       "sha256": "df6a126dab02e597fd1c83eeab8c0b43603034350c3e9b4c17cac6fc166019bd",
+      "original_sha256": null
+    },
+    {
+      "path": "config-sharing.js",
+      "original": null,
+      "preserved": true,
+      "sha256": "3627889168e84555525ab976ee2a0a9337b5c1945b3f38cfeb828cf0067aad75",
       "original_sha256": null
     }
   ]

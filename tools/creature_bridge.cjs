@@ -22,14 +22,14 @@ function createCreatureSource(file, options = {}) {
     try {
       const stat = fs.statSync(absolute);
       if (!stat.isFile() || stat.size > 16 * 1024 * 1024) throw Error('Stream excede 16 MiB ou nao e arquivo.');
-      if (stat.size === 0) throw Error('Aguardando stream inicial de criaturas...');
+      if (stat.size === 0) throw Object.assign(Error('Stream vazio.'), { code: 'EAGAIN' });
       const raw = fs.readFileSync(absolute, 'utf8');
-      if (!raw || !raw.trim()) throw Error('Aguardando stream inicial de criaturas...');
+      if (!raw || !raw.trim()) throw Object.assign(Error('Stream vazio.'), { code: 'EAGAIN' });
       snapshot = JSON.parse(raw);
     } catch (error) {
-      if ((error instanceof SyntaxError || ['ENOENT', 'EACCES', 'EPERM', 'EBUSY'].includes(error.code))
-          && previous && fresh(previous)) return structuredClone(previous);
-      if (error instanceof SyntaxError) throw Error('Aguardando stream inicial de criaturas...');
+      const transient = error instanceof SyntaxError || ['ENOENT', 'EACCES', 'EPERM', 'EBUSY', 'EAGAIN'].includes(error.code);
+      if (transient && previous && fresh(previous)) return structuredClone(previous);
+      if (transient) throw Object.assign(Error('Aguardando stream inicial de criaturas...'), { code: 'CREATURE_STREAM_WAITING' });
       throw error;
     }
     if (!snapshot || snapshot.schema !== 2 || !Array.isArray(snapshot.creatures)

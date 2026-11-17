@@ -26,12 +26,55 @@ def configure_user(user):
         'GetWindowTextW': ([wintypes.HWND, wintypes.LPWSTR, ctypes.c_int], ctypes.c_int),
         'MapVirtualKeyW': ([wintypes.UINT, wintypes.UINT], wintypes.UINT),
         'PostMessageW': ([wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM], wintypes.BOOL),
+        'OpenWindowStationW': ([wintypes.LPCWSTR, wintypes.BOOL, wintypes.DWORD], wintypes.HANDLE),
+        'SetProcessWindowStation': ([wintypes.HANDLE], wintypes.BOOL),
+        'OpenDesktopW': ([wintypes.LPCWSTR, wintypes.DWORD, wintypes.BOOL, wintypes.DWORD], wintypes.HANDLE),
+        'SetThreadDesktop': ([wintypes.HANDLE], wintypes.BOOL),
+        'EnumDesktopWindows': ([wintypes.HANDLE, callback_type, wintypes.LPARAM], wintypes.BOOL),
+        'CloseWindowStation': ([wintypes.HANDLE], wintypes.BOOL),
     }
     for name, (arguments, result) in signatures.items():
-        function = getattr(user, name)
-        function.argtypes = arguments
-        function.restype = result
+        function = getattr(user, name, None)
+        if function is not None:
+            function.argtypes = arguments
+            function.restype = result
     return callback_type
+
+
+def bind_desktop(user):
+    cached = vars(user).get('_pka_desktop_binding')
+    if cached is not None:
+        return cached
+    hwinsta = None
+    hdesk = None
+    issues = []
+    try:
+        open_station = getattr(user, 'OpenWindowStationW', None)
+        set_station = getattr(user, 'SetProcessWindowStation', None)
+        if open_station and set_station:
+            hwinsta = open_station('WinSta0', False, 0x037F)
+            if not hwinsta:
+                issues.append(('OpenWindowStationW', ctypes.get_last_error()))
+            elif not set_station(hwinsta):
+                issues.append(('SetProcessWindowStation', ctypes.get_last_error()))
+                user.CloseWindowStation(hwinsta)
+                hwinsta = None
+    except Exception as error:
+        issues.append(('WindowStation', str(error)))
+    try:
+        open_desk = getattr(user, 'OpenDesktopW', None)
+        set_desk = getattr(user, 'SetThreadDesktop', None)
+        if hwinsta and open_desk and set_desk:
+            hdesk = open_desk('Default', 0, False, 0x01FF)
+            if not hdesk:
+                issues.append(('OpenDesktopW', ctypes.get_last_error()))
+            elif not set_desk(hdesk):
+                issues.append(('SetThreadDesktop', ctypes.get_last_error()))
+    except Exception as error:
+        issues.append(('Desktop', str(error)))
+    user._pka_desktop_binding = (hwinsta, hdesk)
+    user._pka_desktop_issues = issues
+    return user._pka_desktop_binding
 
 
 def validate_process(kernel, pid):
@@ -74,6 +117,7 @@ def window_details(user, hwnd, pid):
 
 
 def find_window(user, pid, callback_type):
+    hwinsta, hdesk = bind_desktop(user)
     windows = []
 
     @callback_type
@@ -88,8 +132,21 @@ def find_window(user, pid, callback_type):
                 pass
         return True
 
-    if not user.EnumWindows(visit, 0) or not windows:
-        raise ValueError('Falha ao enumerar janelas do cliente.')
+    try:
+        user.EnumWindows(visit, 0)
+    except OSError:
+        pass
+
+    if not windows and hdesk and hasattr(user, 'EnumDesktopWindows'):
+        try:
+            user.EnumDesktopWindows(hdesk, visit, 0)
+        except OSError:
+            pass
+
+    if not windows:
+        issues = vars(user).get('_pka_desktop_issues', [])
+        detail = f' Desktop: {issues}.' if issues else ''
+        raise ValueError('Falha ao enumerar janelas do cliente.' + detail)
     windows.sort(reverse=True)
     return windows[0][1]
 

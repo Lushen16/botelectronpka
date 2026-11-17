@@ -1,78 +1,78 @@
 {
-  "generatedAt": "2026-10-22T13:26:20.132Z",
+  "generatedAt": "2026-10-31T15:30:10.595Z",
   "processes": [
     {
-      "ProcessId": 24556,
-      "ParentProcessId": 5520,
+      "ProcessId": 38832,
+      "ParentProcessId": 13916,
       "Name": "launcher.exe",
       "ExecutablePath": "C:\\Users\\yago\\AppData\\Local\\ShibaLauncher\\Client\\launcher.exe"
     },
     {
-      "ProcessId": 32084,
-      "ParentProcessId": 27676,
+      "ProcessId": 37936,
+      "ParentProcessId": 27064,
       "Name": "PokeAlliance_dx.exe",
       "ExecutablePath": "C:\\Users\\yago\\AppData\\Local\\PokeAlliance Games\\PokeAlliance\\PokeAlliance_dx.exe"
     },
     {
-      "ProcessId": 11732,
-      "ParentProcessId": 22068,
-      "Name": "e8649d900eaf7fab710c2c0337433a4d.exe.tmp",
-      "ExecutablePath": "C:\\Users\\yago\\AppData\\Local\\ShibaLauncher\\Apps\\a497a7a52bf97c5bcc5fad69c7958ce6\\current\\Shiba Bots - Poke Alliance v3.1.9\\dll\\e8649d900eaf7fab710c2c0337433a4d.exe.tmp"
+      "ProcessId": 37812,
+      "ParentProcessId": 6128,
+      "Name": "9d6daac2cf2542e6fd23e02d1d44d3bc.exe.tmp",
+      "ExecutablePath": "C:\\Users\\yago\\AppData\\Local\\ShibaLauncher\\Apps\\9ecfeb32d13c0984e8bc27baada63a54\\current\\Shiba Bots - Poke Alliance v3.2.9\\dll\\9d6daac2cf2542e6fd23e02d1d44d3bc.exe.tmp"
     },
     {
-      "ProcessId": 28068,
-      "ParentProcessId": 11732,
-      "Name": "e8649d900eaf7fab710c2c0337433a4d.exe.tmp",
-      "ExecutablePath": "C:\\Users\\yago\\AppData\\Local\\ShibaLauncher\\Apps\\a497a7a52bf97c5bcc5fad69c7958ce6\\current\\Shiba Bots - Poke Alliance v3.1.9\\dll\\e8649d900eaf7fab710c2c0337433a4d.exe.tmp"
+      "ProcessId": 16628,
+      "ParentProcessId": 37812,
+      "Name": "9d6daac2cf2542e6fd23e02d1d44d3bc.exe.tmp",
+      "ExecutablePath": "C:\\Users\\yago\\AppData\\Local\\ShibaLauncher\\Apps\\9ecfeb32d13c0984e8bc27baada63a54\\current\\Shiba Bots - Poke Alliance v3.2.9\\dll\\9d6daac2cf2542e6fd23e02d1d44d3bc.exe.tmp"
     },
     {
-      "ProcessId": 29212,
-      "ParentProcessId": 11732,
-      "Name": "e8649d900eaf7fab710c2c0337433a4d.exe.tmp",
-      "ExecutablePath": "C:\\Users\\yago\\AppData\\Local\\ShibaLauncher\\Apps\\a497a7a52bf97c5bcc5fad69c7958ce6\\current\\Shiba Bots - Poke Alliance v3.1.9\\dll\\e8649d900eaf7fab710c2c0337433a4d.exe.tmp"
+      "ProcessId": 40672,
+      "ParentProcessId": 37812,
+      "Name": "9d6daac2cf2542e6fd23e02d1d44d3bc.exe.tmp",
+      "ExecutablePath": "C:\\Users\\yago\\AppData\\Local\\ShibaLauncher\\Apps\\9ecfeb32d13c0984e8bc27baada63a54\\current\\Shiba Bots - Poke Alliance v3.2.9\\dll\\9d6daac2cf2542e6fd23e02d1d44d3bc.exe.tmp"
     },
     {
-      "ProcessId": 25448,
-      "ParentProcessId": 11732,
-      "Name": "e8649d900eaf7fab710c2c0337433a4d.exe.tmp",
-      "ExecutablePath": "C:\\Users\\yago\\AppData\\Local\\ShibaLauncher\\Apps\\a497a7a52bf97c5bcc5fad69c7958ce6\\current\\Shiba Bots - Poke Alliance v3.1.9\\dll\\e8649d900eaf7fab710c2c0337433a4d.exe.tmp"
+      "ProcessId": 33720,
+      "ParentProcessId": 37812,
+      "Name": "9d6daac2cf2542e6fd23e02d1d44d3bc.exe.tmp",
+      "ExecutablePath": "C:\\Users\\yago\\AppData\\Local\\ShibaLauncher\\Apps\\9ecfeb32d13c0984e8bc27baada63a54\\current\\Shiba Bots - Poke Alliance v3.2.9\\dll\\9d6daac2cf2542e6fd23e02d1d44d3bc.exe.tmp"
     }
   ],
   "visibleClientModules": [
     {
-      "ProcessId": 32084,
+      "ProcessId": 37936,
       "ModuleName": "PokeAlliance_dx.exe",
       "FileName": "C:\\Users\\yago\\AppData\\Local\\PokeAlliance Games\\PokeAlliance\\PokeAlliance_dx.exe",
-      "ModuleMemorySize": 61247488
+      "ModuleMemorySize": 61468672
     },
     {
-      "ProcessId": 32084,
+      "ProcessId": 37936,
       "ModuleName": "libEGL.dll",
       "FileName": "C:\\Users\\yago\\AppData\\Local\\PokeAlliance Games\\PokeAlliance\\libEGL.dll",
       "ModuleMemorySize": 524288
     },
     {
-      "ProcessId": 32084,
+      "ProcessId": 37936,
       "ModuleName": "libGLESv2.dll",
       "FileName": "C:\\Users\\yago\\AppData\\Local\\PokeAlliance Games\\PokeAlliance\\libGLESv2.dll",
       "ModuleMemorySize": 7151616
     },
     {
-      "ProcessId": 32084,
+      "ProcessId": 37936,
       "ModuleName": "d3dcompiler_47.dll",
       "FileName": "C:\\Users\\yago\\AppData\\Local\\PokeAlliance Games\\PokeAlliance\\d3dcompiler_47.dll",
       "ModuleMemorySize": 4771840
     }
   ],
   "pipeNames": [
-    "pka-runtime-2-32084"
+    "pka-runtime-2-37936"
   ],
   "clientFiles": [
     {
       "path": "C:\\Users\\yago\\AppData\\Local\\PokeAlliance Games\\PokeAlliance\\PokeAlliance_dx.exe",
       "pe": {
-        "bytes": 37534256,
-        "sha256": "9e4b4dcd735d5c1f709732f903d403a3068a6cf911e1977c4880f62b15d54a11",
+        "bytes": 37755952,
+        "sha256": "473df25c1edd23e7464ad3ba9b923a603051a8b4ae8004a95c06402f678294e6",
         "valid_headers": true,
         "e_lfanew": 320,
         "e_lfanew_raw_hex": "40010000",

@@ -11,7 +11,12 @@ const configuration = () => ({
   target: { monsters: [], skills: [], maxDistance: 8 },
   healer: { healHpPercent: 0, healPokemonName: 'Charizard', healMoveSlot: 1, healResetSlot: 1 },
   hoenn: { potionHpPercent: 0 },
-  walker: { waypoints: [{ action: 'walk', pos: { x: 3305, y: 2264, z: 9 } }] },
+  /* `stepIntervalMs: 0`: este laco chama `automation.tick` sem avancar o
+   * relogio, e o piso de cadencia real (406 ms por tile, medido no Shiba)
+   * bloquearia todos os passos menos o primeiro. O piso tem teste proprio em
+   * tests/engines.test.cjs; aqui o objetivo e' provar que o caminho
+   * automacao -> adaptador -> simulacao leva o personagem ao waypoint. */
+  walker: { stepIntervalMs: 0, waypoints: [{ action: 'walk', pos: { x: 3305, y: 2264, z: 9 } }] },
 });
 
 test('simulation snapshot is a native-verified session that passes the engine gate', () => {

@@ -1,0 +1,28 @@
+{
+  "name": "pka-tools",
+  "version": "3.3.1",
+  "private": true,
+  "description": "External PKA menu with local memory IPC",
+  "main": "main.cjs",
+  "scripts": {
+    "start": "electron .",
+    "build": "node scripts/package.cjs",
+    "portable": "node scripts/portable.cjs",
+    "release": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File ../tools/build_distribution.ps1",
+    "precheck": "node --check lib/menu-view.cjs && node --check renderer/guild-daily.js && node --check lib/security.cjs && node --check scripts/protect.cjs && node --check scripts/portable.cjs && node --check scripts/release.cjs && node --check lib/native-runtime.cjs && node --check lib/walker-profiles.cjs && node --check lib/alert-presenter.cjs && node --check lib/map-view.cjs && node --check lib/core.cjs && node --check lib/luring.cjs && node --check shared/healer.js && node --check renderer/healer.js && node --check renderer/scripts.js && node --check shared/diagnostics.js && node --check shared/messages.js && node --check lib/config-sharing.cjs && node --check renderer/config-sharing.js",
+    "check": "node --check main.cjs && node --check preload.cjs && node --check look-preload.cjs && node --check renderer/look.js && node --check lib/launch.cjs && node --check lib/protocol.cjs && node --check lib/pipe-bridge.cjs && node --check lib/telemetry.cjs && node --check lib/runtime.cjs && node --check lib/settings.cjs && node --check lib/legacy.cjs && node --check lib/alerts.cjs && node --check lib/otmm.cjs && node --check lib/map.cjs && node --check renderer/app.js && node --check renderer/target.js && node --check renderer/walker.js && node --check renderer/looting.js && node --check shared/schema.js && node --check shared/walker.js && node --check scripts/package.cjs && node --check renderer/ui.js && node --check renderer/hoenn.js && node --check renderer/alerts.js && node --check shared/hoenn.js && node --check shared/alerts.js",
+    "test": "node --test ../tests/electron_*.test.cjs"
+  },
+  "devDependencies": {
+    "@electron/asar": "4.3.1",
+    "@electron/fuses": "2.1.3",
+    "bytenode": "1.7.0",
+    "electron": "44.7.2",
+    "electron-builder": "26.15.3",
+    "resedit": "2.0.3",
+    "terser": "5.51.2"
+  },
+  "engines": {
+    "node": ">=22.12"
+  }
+}

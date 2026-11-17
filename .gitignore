@@ -1,4 +1,9 @@
-# Node / Binaries / Runtime
+# Segredos — NUNCA commitar
+.env
+.env.*
+!.env.example
+*.pem
+*.key
 node_modules/
 runtime/
 dist/
@@ -19,10 +24,17 @@ smoke-data/
 *.bak
 *.bak-*
 *.dmp
+*.jsonl
+validation-logs/
+
+# Ghidra projects
+*.gpr
+*.rep/
 
 # Python cache
 __pycache__/
 *.pyc
+.pytest_cache/
 
 # Local dumps / captures captures
 captures/
@@ -44,3 +56,11 @@ tilemap-live.json
 walker-restart.json
 walker-input-probe.json
 local-data/dumps/
+
+# Binarios nativos compilados (build: node tools/build_native.cjs)
+native/*.dll
+native/*.exe
+native/*.pdb
+native/*.lib
+native/pka_channel_key.txt
+native/exec-result.json

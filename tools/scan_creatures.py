@@ -19,8 +19,6 @@ MEM_COMMIT = 0x1000
 PAGE_NOACCESS = 0x01
 PAGE_GUARD = 0x100
 IMAGE_NAME = "PokeAlliance_dx.exe"
-CREATURE_VTABLE = 0x7ff718ec1e58
-PLAYER_VA = 0x1e630d01040
 
 class MEMORY_BASIC_INFORMATION64(ctypes.Structure):
     _fields_ = [
@@ -80,6 +78,13 @@ class Layout:
         self.canattack_offset = canattack_offset
         self.type_offset = type_offset
         self.confirmed = Layout.confirmed
+
+    @classmethod
+    def from_dict(cls, spec):
+        """Constroi a partir de creature_identity.layout_for_sha()."""
+        return cls(pos_offset=spec['pos'], id_offset=spec['id'], name_offset=spec['name'],
+                   hp_offset=spec['hp'], canattack_offset=spec['canAttack'],
+                   type_offset=spec['type']) if spec else cls()
 
 class Filters:
     def __init__(self, coord_min=1, coord_max=65535, z_max=15,
@@ -169,66 +174,32 @@ def read_mem(handle, va, size):
 
 def scan_process(handle, pid, player_name="Nobutdopai"):
     import otclient_rtti as rtti
-    vas = rtti.scan_instances(handle, CREATURE_VTABLE)
-    
-    # Read player pos
-    p_raw = read_mem(handle, PLAYER_VA + 0x30, 12)
-    if p_raw and len(p_raw) >= 10:
-        px, py, pz = struct.unpack_from('<iih', p_raw, 0)
-    else:
-        px, py, pz = 3330, 2190, 8
-        
-    creatures = []
-    for va in vas:
-        buf = read_mem(handle, va + 0x30, 0x160)
-        if not buf or len(buf) < 0x157:
-            continue
-        x, y, z = struct.unpack_from('<iih', buf, 0)
-        if x == 65535 or not (1000 <= x <= 5000):
-            continue
-        cid = struct.unpack_from('<I', buf, 0x2C)[0]
-        name_raw = buf[0x50:0x70].split(b'\x00')[0]
-        try:
-            name = name_raw.decode('ascii', 'ignore')
-        except:
-            name = ""
-        hp = buf[0x90]
-        ctype = buf[0x156]
-        can_attack = (ctype == 1 and hp > 0)
-        is_player = (ctype == 0 and name != "")
-        
-        creature = {
-            "id": cid,
-            "name": name,
-            "pos": {"x": x, "y": y, "z": z},
-            "hp": hp,
-            "healthPercent": hp,
-            "canAttack": can_attack,
-            "creatureType": ctype,
-            "isOwnPokemon": (ctype == 3),
-            "is_player": is_player,
-            "struct_va": hex(va)
-        }
-        creatures.append(creature)
-        
-    snapshot = {
-        "schema": 2,
-        "pid": pid,
-        "player": {
-            "name": player_name,
-            "pos": {"x": px, "y": py, "z": pz},
-            "struct_va": hex(PLAYER_VA)
-        },
-        "layout": {
-            "id_offset": hex(Layout.id_offset),
-            "hp_offset": hex(Layout.hp_offset),
-            "canattack_offset": hex(Layout.canattack_offset),
-            "confirmed": Layout.confirmed
-        },
-        "creatures": creatures,
-        "generatedAt": datetime.datetime.now(datetime.timezone.utc).isoformat()
-    }
-    return snapshot
+    import creature_identity as identity
+    layout, filters = Layout(), Filters()
+    sha = process_sha256(handle)
+    if sha:
+        layout = Layout.from_dict(identity.layout_for_sha(sha))
+        print('[layout] build %s -> pos=%#x name=%#x hp=%#x id=%#x type=%#x'
+              % (sha[:12], layout.pos_offset, layout.name_offset,
+                 layout.hp_offset, layout.id_offset, layout.type_offset),
+              file=sys.stderr, flush=True)
+    player = locate_player(handle, pid, player_name, layout, filters)
+    profile = resolve_stream_profile(handle, pid, int(player['vtable'], 16))
+    addresses = rtti.scan_instances(handle, int(profile['creatureVtable'], 16))
+    creatures = read_creatures(handle, addresses, profile, layout, filters)
+    player = read_entity(handle, int(player['struct_va'], 16), layout)
+    if not valid_player(player, player_name, filters):
+        raise ValueError('player identity changed during creature scan')
+    player['ownershipVerified'] = True
+    return build_creature_snapshot(pid, player, creatures, profile, layout)
+
+
+def process_sha256(handle):
+    try:
+        path = process_image_path(handle)
+        return file_sha256(path) if path else None
+    except OSError:
+        return None
 
 def process_image_path(handle):
     size = wintypes.DWORD(32768)
@@ -266,6 +237,58 @@ def read_entity(handle, va, layout):
         "creatureType": ctype, "canAttack": ctype == 1 and hp > 0,
         "isOwnPokemon": ctype == 3, "is_player": ctype == 0 and bool(name.strip()),
     }
+
+def valid_player(entity, player_name, filters):
+    return bool(entity) and entity['creatureType'] == 0 and entity['id'] > 0 \
+        and int(entity['vtable'], 16) != 0 \
+        and entity['name'].strip().lower() == player_name.strip().lower() \
+        and plausible_name(entity['name'], filters) \
+        and plausible_coords(entity['pos']['x'], entity['pos']['y'], entity['pos']['z'], filters)
+
+def locate_player(handle, pid, player_name, layout, filters):
+    import pointer_scan_entities as pe
+    import pka_live_session as live
+    if not isinstance(player_name, str) or not player_name.strip():
+        raise ValueError('player name is required')
+    module = next(module for module in pe.enum_modules(pid)
+                  if module['name'].lower() == IMAGE_NAME.lower())
+    candidate = live.resolve_chains(lambda address, size: read_mem(handle, address, size),
+        module['base'], live.DEFAULT_CHAINS, layout, filters, player_name)
+    if candidate:
+        entity = read_entity(handle, int(candidate['struct_va'], 16), layout)
+        if valid_player(entity, player_name, filters):
+            return entity
+    address = pe.locate_by_name(handle, player_name, layout, filters, id_offset=layout.id_offset)
+    entity = read_entity(handle, address, layout) if address else None
+    if not valid_player(entity, player_name, filters):
+        raise ValueError('player not found or identity invalid')
+    return entity
+
+def read_creatures(handle, addresses, profile, layout, filters):
+    creatures = []
+    for address in addresses:
+        entity = read_entity(handle, address, layout)
+        if not entity or entity['vtable'] != profile['creatureVtable']:
+            continue
+        control = read_mem(handle, address, 24)
+        if (not control or len(control) != 24 or struct.unpack_from('<I', control, 8)[0] == 0
+                or struct.unpack_from('<Q', control, 16)[0] != int(profile['monsterVtable'], 16)):
+            continue
+        if entity['creatureType'] not in (0, 1, 3, 4) or not 0 <= entity['healthPercent'] <= 100:
+            continue
+        if not plausible_name(entity['name'], filters) or not plausible_coords(
+                entity['pos']['x'], entity['pos']['y'], entity['pos']['z'], filters):
+            continue
+        entity['ownershipVerified'] = True
+        creatures.append(entity)
+    return creatures
+
+def build_creature_snapshot(pid, player, creatures, profile, layout):
+    return {'schema': 2, 'pid': pid, 'player': player,
+        'layout': {'id_offset': hex(layout.id_offset), 'hp_offset': hex(layout.hp_offset),
+            'canattack_offset': hex(layout.canattack_offset), 'type_offset': hex(layout.type_offset),
+            'confirmed': layout.confirmed, 'identityProfile': profile},
+        'creatures': creatures, 'generatedAt': datetime.datetime.now(datetime.timezone.utc).isoformat()}
 
 def identity_profile(handle, pid, creature_vtable, player_vtable):
     import pointer_scan_entities as pe
@@ -305,83 +328,66 @@ def _write_json_atomic(path, value):
     except OSError:
         target.write_text(text, encoding="utf-8")
 
-def stream_snapshot(handle, pid, player_name, output, interval_ms=300, rescan_ms=8000):
-    import threading
+def resolve_stream_profile(handle, pid, player_vtable):
+    import creature_identity as identity
     import pointer_scan_entities as pe
     import otclient_rtti as rtti
-    layout, filters = Layout(), Filters()
-    player_va = pe.locate_by_name(handle, player_name, layout, filters, id_offset=layout.id_offset)
-    if not player_va:
-        print(json.dumps({"error": "player not found", "pid": pid}), file=sys.stderr, flush=True)
-        return 2
-    player = read_entity(handle, player_va, layout)
-    if not player:
-        print(json.dumps({"error": "player unreadable", "pid": pid}), file=sys.stderr, flush=True)
-        return 2
-    profile = identity_profile(handle, pid, CREATURE_VTABLE, int(player["vtable"], 16))
-    state = {"creature_vas": [], "player_va": player_va}
 
-    def plausible_entity(entity):
-        return bool(entity) and entity["creatureType"] == 0 \
-            and plausible_coords(entity["pos"]["x"], entity["pos"]["y"], entity["pos"]["z"], filters) \
-            and plausible_name(entity["name"].encode("ascii", "replace"), filters)
+    module = next(module for module in pe.enum_modules(pid)
+                  if module["name"].lower() == IMAGE_NAME.lower())
+    profile = identity_profile(handle, pid, None, player_vtable)
+    allowed_hashes = getattr(identity, "SUPPORTED_EXECUTABLE_SHA256", {identity.EXECUTABLE_SHA256})
+    if profile["executableSha256"] not in allowed_hashes:
+        raise ValueError("Unsupported creature executable identity")
+    image = rtti.read_module_image(handle, module["base"], module["size"])
+    control = rtti.resolve_class(image, module["base"], "?$_Ref_count_obj2@VMonster@@@std")
+    monster = rtti.resolve_class(image, module["base"], "Monster")
+    if not control or not monster:
+        raise ValueError("Monster RTTI unavailable; creature discovery blocked")
+    profile["creatureVtable"] = hex(control["vtable"])
+    profile["monsterVtable"] = hex(monster["vtable"])
+    profile["moduleBase"] = hex(module["base"])
+    return profile
+
+def stream_snapshot(handle, pid, player_name, output, interval_ms=300, rescan_ms=8000):
+    import threading
+    import otclient_rtti as rtti
+    layout, filters = Layout(), Filters()
+    try:
+        player = locate_player(handle, pid, player_name, layout, filters)
+    except ValueError as error:
+        print(json.dumps({'error': str(error), 'pid': pid}), file=sys.stderr, flush=True)
+        return 2
+    player_va = int(player['struct_va'], 16)
+    profile = resolve_stream_profile(handle, pid, int(player['vtable'], 16))
+    creature_vtable = int(profile['creatureVtable'], 16)
+    state = {'creature_vas': [], 'player_va': player_va}
 
     def rescan():
         while True:
             try:
-                state["creature_vas"] = rtti.scan_instances(handle, CREATURE_VTABLE)
-                # The player object is recreated on map/floor changes, so the
-                # cached VA can go stale; relocate only when it stops reading.
-                if not plausible_entity(read_entity(handle, state["player_va"], layout)):
-                    relocated = pe.locate_by_name(handle, player_name, layout, filters,
-                        id_offset=layout.id_offset)
-                    if relocated:
-                        state["player_va"] = relocated
+                if not valid_player(read_entity(handle, state['player_va'], layout), player_name, filters):
+                    relocated = locate_player(handle, pid, player_name, layout, filters)
+                    state['player_va'] = int(relocated['struct_va'], 16)
+                state['creature_vas'] = rtti.scan_instances(handle, creature_vtable)
             except Exception:
                 pass
             time.sleep(max(1.0, rescan_ms / 1000))
 
     try:
-        state["creature_vas"] = rtti.scan_instances(handle, CREATURE_VTABLE)
+        state['creature_vas'] = rtti.scan_instances(handle, creature_vtable)
     except Exception:
         pass
-    threading.Thread(target=rescan, name="creature-rescan", daemon=True).start()
+    threading.Thread(target=rescan, name='creature-rescan', daemon=True).start()
     try:
         while True:
             try:
-                current_player = read_entity(handle, state["player_va"], layout)
-                if not plausible_entity(current_player):
-                    current_player = read_entity(handle, player_va, layout) or player
-                player_va = state["player_va"]
-                creatures = []
-                for va in list(state["creature_vas"]):
-                    if va == player_va:
-                        continue
-                    entity = read_entity(handle, va, layout)
-                    if not entity or entity["vtable"] != hex(CREATURE_VTABLE):
-                        continue
-                    if entity["creatureType"] not in (0, 1, 3, 4):
-                        continue
-                    if not plausible_name(entity["name"].encode("ascii", "replace"), filters):
-                        continue
-                    if not plausible_coords(entity["pos"]["x"], entity["pos"]["y"], entity["pos"]["z"], filters):
-                        continue
-                    entity["ownershipVerified"] = True
-                    creatures.append(entity)
-                current_player["ownershipVerified"] = (
-                    current_player["creatureType"] == 0
-                    and int(current_player["vtable"], 16) != CREATURE_VTABLE
-                    and plausible_name(current_player["name"].encode("ascii", "replace"), filters))
-                snapshot = {
-                    "schema": 2, "pid": pid, "player": current_player,
-                    "layout": {
-                        "id_offset": hex(layout.id_offset), "hp_offset": hex(layout.hp_offset),
-                        "canattack_offset": hex(layout.canattack_offset), "type_offset": hex(layout.type_offset),
-                        "confirmed": Layout.confirmed, "identityProfile": profile,
-                    },
-                    "creatures": creatures,
-                    "generatedAt": datetime.datetime.now(datetime.timezone.utc).isoformat(),
-                }
+                current_player = read_entity(handle, state['player_va'], layout)
+                if not valid_player(current_player, player_name, filters):
+                    raise ValueError('player identity unavailable; snapshot not refreshed')
+                creatures = read_creatures(handle, list(state['creature_vas']), profile, layout, filters)
+                current_player['ownershipVerified'] = True
+                snapshot = build_creature_snapshot(pid, current_player, creatures, profile, layout)
                 _write_json_atomic(output, snapshot)
             except Exception:
                 pass

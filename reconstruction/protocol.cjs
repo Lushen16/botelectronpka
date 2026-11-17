@@ -18,10 +18,29 @@ function uuidHash(value) {
 }
 function decodeState(bytes) {
   if (!Buffer.isBuffer(bytes) || bytes.length !== STATE_SIZE) fail("Estado IPC deve ter exatamente 48 bytes.");
+  /* Layout confirmado no canal real (tap 2026-11-04, 18492 amostras):
+   *   +0  version        campo chamado "version" pelo modulo original, mas o
+   *                      conteudo e um CONTADOR (148136953..149316578). O nome
+   *                      fica por fidelidade ao contrato; `tick` e o alias
+   *                      semanticamente correto (nao-enumeravel para nao
+   *                      quebrar o vetor diferencial).
+   *   +4  isOnline       0/1
+   *   +8  healthPercent  0..100
+   *   +12 hp        f64  -1 = sem leitura (sentinela), nao 0
+   *   +20 mana      f64  -1 = sem leitura
+   *   +28 cap       f64
+   *   +36 targetId  u32
+   *   +40 attackSeqNum u32
+   *   +44 protoVersion   854 no cliente real, nao 1
+   */
   const state = { version: bytes.readUInt32LE(0), isOnline: bytes.readUInt32LE(4), healthPercent: bytes.readUInt32LE(8), hp: bytes.readDoubleLE(12), mana: bytes.readDoubleLE(20), cap: bytes.readDoubleLE(28), targetId: bytes.readUInt32LE(36), attackSeqNum: bytes.readUInt32LE(40), protoVersion: bytes.readUInt32LE(44) };
-  if (state.healthPercent > 100 || ![state.hp, state.mana, state.cap].every(Number.isFinite)) fail("Estado IPC cont\u00e9m valores inv\u00e1lidos. Confira os offsets da DLL.");
+  if (state.healthPercent > 100) fail("Estado IPC cont\u00e9m valores inv\u00e1lidos. Confira os offsets da DLL.");
+  /* hp/mana/cap usam -1 como sentinela de "sem leitura"; so NaN/Inf e defeito. */
+  if (![state.hp, state.mana, state.cap].every(Number.isFinite)) fail("Estado IPC cont\u00e9m valores inv\u00e1lidos. Confira os offsets da DLL.");
   state.authExpired = false;
   state.online = Boolean(state.isOnline);
+  /* alias semantico: nao-enumeravel, entao o vetor diferencial continua igual */
+  Object.defineProperty(state, 'tick', { value: state.version, enumerable: false });
   return state;
 }
 function decodeAck(bytes) {
@@ -37,6 +56,20 @@ function encodeCommand(commandId, command, parameter = 0, options = {}) {
   let bytes = Buffer.alloc(COMMAND_SIZE);
   let identityOffset = 12;
   let text;
+  /* `potion` e `revive` nos vetores capturados da DLL do fornecedor:
+   *
+   *   potion  -> ACEITO como NUMERO (param1 1..65535). Texto e' rejeitado.
+   *   revive  -> SEMPRE REJEITADO ("Comando ou parametros nao suportados").
+   *
+   * Eu tinha aberto os dois para texto e quebrei 52 vetores byte-exatos
+   * (indices 1273..1304). O teste "independent implementation matches every
+   * captured vector" pegou — esse e' exatamente o proposito dele.
+   *
+   * CONSEQUENCIA PRATICA: revive NAO pode sair por este canal. A UI usa
+   * `hotkey('f')` (tipo 20), que a nossa DLL executa como tecla da action bar
+   * e a config real do Shiba define como `autoRevive.hotkey = "f"`.
+   * Para potion, a UI manda o SLOT da action bar (`hoenn.potionActionBar = 3`). */
+
   if (['talk', 'combo', 'switchPokemon', 'recallPokemon', 'hotkey', 'guildDaily'].includes(command)) {
     if (typeof parameter !== 'string' || /[\x00-\x1f\x7f]/.test(parameter)) fail("Texto do comando inv\u00e1lido.");
     text = Buffer.from(parameter, 'utf8');

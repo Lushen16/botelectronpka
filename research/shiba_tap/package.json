@@ -1,0 +1,17 @@
+{
+  "name": "shiba-tap-sniffer",
+  "version": "1.2.0",
+  "description": "Sniffer passivo do named pipe do Shiba Bots oficial (research, sem tocar no bot)",
+  "main": "index.cjs",
+  "private": true,
+  "scripts": {
+    "build": "node index.cjs build",
+    "test": "node index.cjs test",
+    "inject": "node index.cjs inject",
+    "watch": "node index.cjs watch",
+    "report": "node index.cjs report",
+    "compare": "node index.cjs compare",
+    "kind6": "node index.cjs kind6",
+    "test:state": "node --test automation-state.test.cjs"
+  }
+}

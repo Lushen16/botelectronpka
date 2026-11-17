@@ -6,6 +6,51 @@ const ACTIONS = Object.freeze(['walk', 'safespot', 'box', 'stairs', 'wait', 'say
 const STAIRS_TIMEOUT_MS = 5000;
 const STUCK_LIMIT = 3;
 const STALL_LIMIT = 6;
+/**
+ * Quanto esperar por uma amostra que confirme o passo antes de considerar
+ * que ele nao aconteceu. Sem isso o motor ficaria em `hold` para sempre se o
+ * personagem estivesse preso numa parede.
+ *
+ * 2500 ms e' o mesmo valor do motor de referencia
+ * (`botfinal/engines/walker-engine.cjs: DEFAULT_PROGRESS_TIMEOUT_MS`).
+ */
+const PROGRESS_TIMEOUT_MS = 2500;
+
+/**
+ * Queda de `tick` que caracteriza REINICIO da telemetria, nao uma amostra
+ * apenas fora de ordem.
+ *
+ * POR QUE: a guarda de ordenacao so' aceita tick ESTRITAMENTE maior. Se o
+ * cliente reiniciar (reconexao, reinjecao da DLL, troca de personagem), o
+ * contador volta para perto de zero e TODA amostra nova fica abaixo do
+ * `sampleTick` do passo pendente. Sem tratar isso a rota passa a andar no
+ * ritmo do prazo — um passo a cada 2500 ms — ate' o fim da rota.
+ *
+ * Um salto de volta de 1000+ ticks nao acontece por reordenacao de rede; o
+ * que acontece e' 1 a 3 ticks para tras.
+ */
+const TICK_RESET_MIN = 1000;
+
+/**
+ * Intervalo entre passos de caminhada, medido no cliente real.
+ *
+ * MEDIDO 2026-11-15, tap passivo (`native/pka_tap_572.jsonl`) com o Shiba
+ * andando: 7 mudancas de tile, intervalos 407, 406, 406, 203, 407 ms —
+ * mediana 406 ms por tile (~2,46 tiles/s). O renderer do Shiba consulta a
+ * posicao a cada ~203 ms (mediana), ou seja, DUAS leituras por passo; o 203
+ * da lista e' artefato de amostragem (duas leituras caindo dos lados da
+ * mudanca), nao um passo rapido. Ferramenta: `tools/tap_walk_cadence.cjs`.
+ *
+ * POR QUE PACEAR: o motor e' chamado a cada 50 ms (canal nativo) e a cada
+ * 100 ms com piso de 250 ms (teclado/RPM). Sem piso proprio, a rota despacha
+ * mais rapido do que o jogo processa e a posicao confirmada vira amostra
+ * repetida — o personagem anda aos trancos e a fila de teclas cresce. Com o
+ * piso no valor medido, o passo sai no mesmo ritmo da referencia.
+ *
+ * Ajustavel por `walker.stepIntervalMs` (0 desliga o piso).
+ */
+const STEP_INTERVAL_MS = 406;
+const STEP_INTERVAL_MAX_MS = 2000;
 
 function clockwise(directionId) {
   return directionId <= 3 ? (directionId + 1) % 4 : 4 + (directionId - 4 + 1) % 4;
@@ -29,8 +74,13 @@ function createWalkerEngine(config) {
   const loop = walker.loop !== false;
   const smart = walker.smartWalking === true;
   const startNearest = walker.startNearestWaypoint === true;
-  const state = { index: 0, waitingUntil: 0, lastPosition: null, attempts: 0, stalls: 0,
-    pendingStairs: null, saidIndex: -1, finished: false, started: false };
+  /* Piso de cadencia: `null`/ausente = valor medido; 0 = sem piso. */
+  const stepIntervalMs = Number.isFinite(Number(walker.stepIntervalMs))
+    ? Math.min(STEP_INTERVAL_MAX_MS, Math.max(0, Number(walker.stepIntervalMs)))
+    : STEP_INTERVAL_MS;
+  const state = { index: 0, waitingUntil: 0, lastPosition: null, lastMoveTick: null, attempts: 0, stalls: 0,
+    pendingStairs: null, saidIndex: -1, finished: false, started: false, approachFrom: null,
+    pendingStep: null, wasSkipped: false, tickSeq: 0, lastDispatchAt: -Infinity };
 
   function nearestIndex(position) {
     let best = 0;
@@ -47,6 +97,8 @@ function createWalkerEngine(config) {
     state.saidIndex = -1;
     state.attempts = 0;
     state.stalls = 0;
+    state.approachFrom = null;
+    state.pendingStep = null;
     if (state.index + 1 < waypoints.length) { state.index += 1; return true; }
     if (loop && waypoints.length) { state.index = 0; return true; }
     state.finished = true;
@@ -59,8 +111,213 @@ function createWalkerEngine(config) {
       : { action: 'done', emitted, ...(reason ? { reason } : {}) };
   }
 
+  /**
+   * Reconcilia o passo pendente contra uma amostra nova.
+   *
+   * POR QUE EXISTE (medido 2026-11-14): a versao anterior comparava
+   * `telemetry.tick === state.lastMoveTick` (IGUALDADE). Isso barrava so' a
+   * amostra repetida:
+   *
+   *   repetida    (10, 10, 10)  -> 1 passo   OK
+   *   atrasada    (10,  9,  9)  -> 2 passos  BUG
+   *   fora ordem  (10, 12, 11)  -> 3 passos  BUG
+   *   sem tick    (undef x3)    -> 3 passos  BUG
+   *
+   * Uma amostra ATRASADA tem tick diferente do ultimo despacho, entao passava
+   * pela guarda e o motor despachava outro passo com a MESMA posicao — o
+   * personagem andava dois tiles para um alvo de um.
+   *
+   * A regra correta e' de ORDEM, nao de igualdade: so' uma amostra com tick
+   * ESTRITAMENTE MAIOR que o do despacho pode confirmar ou negar o passo.
+   *
+   * QUANDO NAO HA TICK (telemetria antiga, fixtures sem o campo): nao existe
+   * ordem para comparar, entao a discriminacao passa a ser a POSICAO. Se a
+   * amostra ainda mostra o tile de origem, o passo esta' em voo. Isso mantem
+   * compatibilidade com consumidores que nao publicam `tick` sem reabrir o
+   * bug de despachar duas vezes para a mesma posicao.
+   *
+   * Devolve:
+   *   { hold: motivo }        -> nao despachar nada neste tick
+   *   { abort: motivo }       -> passo descartado por anomalia
+   *   { confirmed: true }     -> passo chegou; o chamador SEGUE e despacha o
+   *                              proximo no mesmo tick (contrato de 1 passo
+   *                              por tick deste motor)
+   */
+  function reconcile(sample, now) {
+    const pending = state.pendingStep;
+    if (!pending) return { confirmed: true };
+
+    const tick = Number.isInteger(sample.tick) ? sample.tick : null;
+
+    /* --- 1. ordenacao --- */
+    if (tick !== null && pending.sampleTick !== null) {
+      if (tick <= pending.sampleTick) {
+        /* Excecao a "so' tick maior vale": queda grande de tick significa que a
+         * telemetria reiniciou. O `sampleTick` do pendente pertence a um
+         * contador que nao existe mais, entao ele nao pode barrar nada —
+         * descarta o pendente e segue com esta amostra (a posicao dela e'
+         * verdade). Ver TICK_RESET_MIN. */
+        if (pending.sampleTick - tick < TICK_RESET_MIN) {
+          /* Amostra antiga, repetida ou fora de ordem: nao confirma e nao
+           * despacha. Deixa o prazo decidir. */
+          checkTimeout(now);
+          return { hold: 'await-position-sample' };
+        }
+        state.pendingStep = null;
+        state.attempts += 1;
+        state.lastPosition = null;
+      }
+    } else if (sameTile(sample.position, pending.from)) {
+      /* Sem tick: unica evidencia de "ainda em voo" e' a posicao de origem. */
+      checkTimeout(now);
+      return { hold: 'await-position-sample' };
+    }
+
+    /* --- 2. entidade trocou (respawn, troca de mapa, reconexao) ---
+     * Os tiles do passo pendente pertencem ao personagem anterior; comparar a
+     * posicao nova com eles seria comparar mundos diferentes. */
+    if (Number.isInteger(sample.playerId) && Number.isInteger(pending.playerId)
+        && sample.playerId !== pending.playerId) {
+      state.pendingStep = null;
+      state.lastPosition = null;
+      return { abort: 'entity-changed', expected: pending.playerId, observed: sample.playerId };
+    }
+
+    /* --- 3. andar mudou: interrompe, nao reinterpreta como chegada --- */
+    if (sample.position.z !== pending.target.z) {
+      state.pendingStep = null;
+      return { abort: 'floor-changed', expectedZ: pending.target.z,
+        observedZ: sample.position.z };
+    }
+
+    /* --- 4. chegou ao TILE DESTE PASSO --- */
+    if (sameTile(sample.position, pending.target)) {
+      state.pendingStep = null;
+      state.attempts = 0;
+      state.lastPosition = sample.position;
+      return { confirmed: true };
+    }
+
+    /* --- 5. ainda na origem ---
+     *
+     * DUAS leituras possiveis desta mesma observacao, e a diferenca importa:
+     *
+     *   a) o passo esta' em voo — o jogo ainda nao processou;
+     *   b) o passo NAO aconteceu — parede, obstaculo, cooldown.
+     *
+     * Distinguir exige um teto. Antes eu esperava `PROGRESS_TIMEOUT_MS`
+     * (2500 ms) sempre, mas isso fazia uma rota presa ficar em `hold` para
+     * sempre quando os ticks vinham rapidos: 7 ticks de 300 ms = 2100 ms,
+     * abaixo do prazo, e o teste de "rota presa reporta erro" nunca via o
+     * `stuck`.
+     *
+     * Regra: cada amostra NOVA (tick maior) mostrando a posicao de origem
+     * conta como uma tentativa sem progresso. Ao atingir STUCK_LIMIT o
+     * chamador ve' `attempts` alto e o contorno `clockwise` entra; em
+     * STALL_LIMIT a rota reporta `stuck`. Amostra repetida (mesmo tick) nao
+     * conta — essa e' a guarda de nao-duplicar, acima. */
+    if (sameTile(sample.position, pending.from)) {
+      pending.originSamples = (pending.originSamples || 0) + 1;
+      if (pending.originSamples >= STUCK_LIMIT) {
+        state.pendingStep = null;
+        state.attempts += 1;
+        state.lastPosition = sample.position;
+        return { confirmed: true, reason: 'no-progress' };
+      }
+      checkTimeout(now);
+      return { hold: 'await-position-sample' };
+    }
+
+    /* --- 6. nem origem nem alvo: deslocamento inesperado ---
+     * Pode ser overshoot do proprio passo ou algo externo movendo o
+     * personagem. Nao reinterpretar como sucesso: descarta o pendente e deixa
+     * o proximo tick recalcular a rota da posicao real. */
+    state.pendingStep = null;
+    return { abort: 'unexpected-displacement', from: pending.from,
+      target: pending.target, observed: { ...sample.position } };
+  }
+
+  /** Passo pendente passou do prazo sem confirmacao. */
+  function checkTimeout(now) {
+    const pending = state.pendingStep;
+    if (!pending) return;
+    if (now - pending.sentAt < PROGRESS_TIMEOUT_MS) return;
+    state.pendingStep = null;
+    /* Nao avanca indice: o passo nao aconteceu. Incrementa `attempts` para o
+     * contorno `clockwise` entrar em acao no proximo despacho. */
+    state.attempts += 1;
+  }
+
+  /**
+   * Avisa o motor que ele NAO foi consultado neste tick.
+   *
+   * POR QUE: `rpm-combat-runtime.cjs` roda o walker em paralelo com o combate,
+   * mas PULA o walker enquanto `last.status === 'combat'`, durante
+   * capture/revive, ou quando a regra do monstro e' `movement: 'stand'`.
+   * Nesses ticks `runWalkerTick` devolve `null` sem chamar `step`.
+   *
+   * O passo pendente daquele instante continua "em voo". Na retomada, o
+   * primeiro `step` compara a amostra com esse pendente velho e devolve
+   * `hold: await-position-sample` — a rota parece travada por ate'
+   * PROGRESS_TIMEOUT_MS (2500 ms) mesmo com tudo em ordem.
+   *
+   * Medido: 4 testes de RPM falhavam com `expected 'move', actual 'hold'`
+   * exatamente nessa retomada apos o combate.
+   *
+   * POR QUE UM METODO E NAO UM LIMIAR DE TEMPO: o motor nao sabe a cadencia
+   * do chamador. Adivinhar por `now` erra quando os ticks sao irregulares
+   * (RPM usa 300 ms nos testes e o runtime real varia). O chamador sabe com
+   * certeza se pulou — entao ele avisa. */
+  function notifySkipped() {
+    state.wasSkipped = true;
+  }
+
+  /** Chamado no inicio de cada `step`.
+   *
+   * Se o tick anterior foi pulado (combate/captura/pausa), o passo pendente
+   * daquele momento nao vale mais. Ver notifySkipped().
+   *
+   * SEGUNDO SINAL, independente do chamador: `last.status` mudou desde o
+   * ultimo despacho. O runtime troca de estado (combat -> walking) entre os
+   * ticks, e o pendente criado em `combat` nao pode ser reconciliado contra
+   * uma amostra de `walking`. O motor detecta isso sozinho comparando o `now`
+   * do despacho com o `now` atual: se passou de um tick de progresso sem
+   * confirmacao, o pendente expirou. */
+  function clearIfSkipped(now) {
+    const skipped = state.wasSkipped;
+    state.wasSkipped = false;
+    const pending = state.pendingStep;
+    if (!pending) return;
+    /* SEM `tick` na amostra: o pendente so' vale para o instante em que foi
+     * criado. Sem ordenacao por tick, nao ha como distinguir "a amostra nao
+     * mudou porque o jogo ainda nao processou" de "o jogo processou e voltou
+     * ao mesmo lugar". Nesse caso o motor nao espera: recalcula a cada tick.
+     *
+     * Isso preserva o contrato dos consumidores que nao publicam `tick`
+     * (fixtures de RPM, telemetria antiga): um passo por tick, sempre
+     * despachando enquanto a posicao nao chegar. Com `tick` presente, a
+     * espera ordenada de `reconcile` entra em acao. */
+    if (pending.sampleTick === null && state.tickSeq > 0 && pending.seq !== state.tickSeq) {
+      state.pendingStep = null;
+      /* NAO zera `lastPosition`: ele e' a memoria de "a posicao mudou desde o
+       * ultimo despacho" e alimenta `attempts`. Zerar aqui fazia uma rota
+       * presa nunca acumular tentativas — o motor ficaria em `move` para
+       * sempre em vez de reportar `stuck`. */
+      return;
+    }
+    const expirou = now - pending.sentAt >= PROGRESS_TIMEOUT_MS;
+    if (!skipped && !expirou) return;
+    state.pendingStep = null;
+    /* `lastPosition` NAO e' zerado aqui: se o personagem nao se mexeu, o
+     * contador de tentativas tem que continuar subindo (senao uma rota presa
+     * alterna move/hold para sempre em vez de reportar `stuck`). Se ele se
+     * mexeu, `sameTile` zera o contador no proximo despacho. */
+  }
+
   function step(telemetry, sink, now) {
     if (!waypoints.length || state.finished) return { action: 'idle', emitted: [] };
+    state.tickSeq += 1;
+    clearIfSkipped(now);
     const position = telemetry.position;
     if (!state.started) {
       state.started = true;
@@ -105,7 +362,39 @@ function createWalkerEngine(config) {
       state.pendingStairs = { fromZ: position.z, deadline: now + STAIRS_TIMEOUT_MS };
       return { action: 'hold', emitted: [], reason: 'stairs' };
     }
-    if (samePlane(position, waypoint.pos)) return next([], 'arrived');
+
+    /* --- Chegada ao waypoint TEM PRECEDENCIA sobre o passo pendente ---
+     * Se a amostra ja' mostra o tile do waypoint, nao ha o que reconciliar:
+     * avanca. Isso cobre overshoot (o personagem andou 2 tiles) sem tratar
+     * como `unexpected-displacement`. */
+    if (samePlane(position, waypoint.pos)) {
+      state.pendingStep = null;
+      return next([], 'arrived');
+    }
+    // Require actual progress on this leg so dense routes cannot cycle in place.
+    if (waypoint.action === 'walk' && state.approachFrom?.z === position.z
+        && position.z === waypoint.pos.z && planeDistance(position, waypoint.pos) === 1
+        && planeDistance(state.approachFrom, waypoint.pos) > 1) {
+      state.pendingStep = null;
+      return next([], 'arrived-within-one-tile');
+    }
+
+    /* --- Passo em voo: reconciliar antes de qualquer novo despacho --- */
+    let reconciled = null;
+    if (state.pendingStep) {
+      const r = reconcile(telemetry, now);
+      if (r.hold) {
+        return { action: 'hold', emitted: [], reason: r.hold,
+          index: state.index, pending: { ...state.pendingStep } };
+      }
+      /* `confirmed`: segue e despacha o proximo passo neste mesmo tick.
+       * `abort`: o pendente ja' foi descartado e a posicao observada e' a nova
+       * verdade — tambem despacha neste tick, a partir dela, em vez de gastar
+       * um tick parado. Com a rota no ritmo do chamador (100 ms) e' o que
+       * separa "recalculou" de "travou por um tick". O motivo vai no payload
+       * para diagnostico. */
+      reconciled = r.abort || null;
+    }
 
     const target = smart ? smartTarget(position, waypoint) : waypoint.pos;
     if (target.x === position.x && target.y === position.y) {
@@ -113,6 +402,29 @@ function createWalkerEngine(config) {
       if (state.stalls >= STALL_LIMIT) return next([], 'floor-mismatch');
       return { action: 'hold', emitted: [], reason: 'floor-mismatch' };
     }
+    /* Tentativa sem progresso: a posicao nao mudou desde o ultimo despacho.
+     *
+     * Conta AQUI, fora do pendente, porque o pendente e' descartado a cada
+     * tick quando a telemetria nao publica `tick` (ver clearIfSkipped). Sem
+     * isso o contador zeraria junto e uma rota presa nunca atingiria
+     * STALL_LIMIT — o teste "rota presa reporta erro" falhava.
+     *
+     * Mesma logica de antes: `sameTile(position, lastPosition)` significa que
+     * o passo anterior nao surtiu efeito. */
+    /* --- Piso de cadencia (ver STEP_INTERVAL_MS) ---
+     *
+     * Fica DEPOIS da reconciliacao de proposito: um passo confirmado nao
+     * autoriza o proximo a sair no mesmo instante — o jogo ainda leva ~406 ms
+     * por tile e despachar antes so' enfileira comando no cliente.
+     *
+     * NAO conta tentativa: esperar a cadencia nao e' passo sem progresso. Se
+     * contasse, uma caminhada normal chegaria a STUCK_LIMIT e a rota sairia em
+     * diagonal sem motivo. */
+    if (now - state.lastDispatchAt < stepIntervalMs) {
+      return { action: 'hold', emitted: [], reason: 'cadence', index: state.index,
+        waitMs: stepIntervalMs - (now - state.lastDispatchAt) };
+    }
+
     const stuck = sameTile(position, state.lastPosition);
     state.attempts = stuck ? state.attempts + 1 : 0;
     let move = direction(position, target);
@@ -121,8 +433,33 @@ function createWalkerEngine(config) {
       if (state.attempts >= STALL_LIMIT) return next([], 'stuck');
     }
     sink.command('walk', move);
+    state.lastDispatchAt = now;
+
+    /* Registra o passo pendente. `target` e' o TILE DESTE PASSO (1 tile),
+     * nao o waypoint final — e' o que permite confirmar passo a passo sem
+     * pular waypoints. */
+    const stepTarget = {
+      x: position.x + Math.sign(target.x - position.x),
+      y: position.y + Math.sign(target.y - position.y),
+      z: position.z,
+    };
+
+    state.pendingStep = {
+      direction: move,
+      from: { ...position },
+      target: stepTarget,
+      sampleTick: Number.isInteger(telemetry.tick) ? telemetry.tick : null,
+      /* Identidade da amostra que originou o passo: se o personagem trocar
+       * (respawn/reconexao), os tiles pendentes deixam de valer. */
+      playerId: Number.isInteger(telemetry.playerId) ? telemetry.playerId : null,
+      seq: state.tickSeq,
+      sentAt: now,
+    };
+    state.approachFrom ??= { ...position };
     state.lastPosition = position;
-    return { action: 'move', emitted: [['walk', move]], direction: move, index: state.index };
+    state.lastMoveTick = Number.isInteger(telemetry.tick) ? telemetry.tick : null;
+    return { action: 'move', emitted: [['walk', move]], direction: move, index: state.index,
+      ...(reconciled ? { reconciled } : {}) };
   }
 
   function smartTarget(position, waypoint) {
@@ -134,11 +471,14 @@ function createWalkerEngine(config) {
 
   return {
     step,
-    reset() { Object.assign(state, { index: 0, waitingUntil: 0, lastPosition: null, attempts: 0, stalls: 0,
-      pendingStairs: null, saidIndex: -1, finished: false, started: false }); },
-    get state() { return { index: state.index, pendingStairs: state.pendingStairs, finished: state.finished, total: waypoints.length }; },
+    notifySkipped,
+    reset() { Object.assign(state, { index: 0, waitingUntil: 0, lastPosition: null, lastMoveTick: null, attempts: 0, stalls: 0,
+      pendingStairs: null, saidIndex: -1, finished: false, started: false, approachFrom: null, pendingStep: null, wasSkipped: false, tickSeq: 0, lastDispatchAt: -Infinity }); },
+    get state() { return { index: state.index, pendingStairs: state.pendingStairs, finished: state.finished, total: waypoints.length,
+      pendingStep: state.pendingStep ? { ...state.pendingStep } : null }; },
     waypoints: () => waypoints.map(waypoint => ({ ...waypoint, pos: { ...waypoint.pos } })),
+    stepIntervalMs,
   };
 }
 
-module.exports = { createWalkerEngine, normalizeWaypoint, ACTIONS, STAIRS_TIMEOUT_MS, STUCK_LIMIT };
+module.exports = { createWalkerEngine, normalizeWaypoint, ACTIONS, STAIRS_TIMEOUT_MS, STUCK_LIMIT, PROGRESS_TIMEOUT_MS, TICK_RESET_MIN, STEP_INTERVAL_MS };

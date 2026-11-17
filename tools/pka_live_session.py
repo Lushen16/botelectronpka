@@ -119,7 +119,7 @@ def read_entity(read, va, layout, filters):
     if not sc.plausible_coords(x, y, z, filters):
         return None
     hp_raw = read(va + layout.hp_offset, 1)
-    hp = hp_raw[0] if (hp_raw and len(hp_raw) == 1 and hp_raw[0] <= 100) else 100
+    hp = hp_raw[0] if (hp_raw and len(hp_raw) == 1 and hp_raw[0] <= 100) else None
     return {"name": name.decode("ascii", "replace"),
             "pos": {"x": x, "y": y, "z": z}, "hp": hp, "healthPercent": hp, "struct_va": hex(va)}
 
@@ -254,7 +254,7 @@ def main(argv=None) -> int:
     last_relocate = 0.0
 
     def ensure_open():
-        nonlocal handle, pid, image, module_base
+        nonlocal handle, pid, image, module_base, expected
         if handle:
             return True
         pid, handle, image = open_target(args.pid, args.process_name)
@@ -262,6 +262,12 @@ def main(argv=None) -> int:
             return False
         module = module_image(pid, args.process_name)
         module_base = module["base"] if module else None
+        if not expected and pid:
+            title = client_window_title(pid)
+            if title and " - " in title:
+                candidate_name = title.split(" - ", 1)[1].strip()
+                if candidate_name:
+                    expected = candidate_name
         return True
 
     creature_layout = sc.Layout(id_offset=args.id_offset, hp_offset=args.hp_offset, canattack_offset=0xC4, type_offset=0x0C)
@@ -275,15 +281,15 @@ def main(argv=None) -> int:
                 continue
             started = time.monotonic()
             try:
-                options = sc.default_options(argparse.Namespace(
-                    max_mib=args.creatures_max_mib, chunk_mib=16, overlap=0x400,
-                    coords_lane=False, player_name=None, player=None))
-                result = sc.scan_process(handle, pid, image, creature_layout, creature_filters, options)
-                creatures = [
-                    {"id": c["id"], "name": c["name"], "type": c["type"],
-                     "healthPercent": c["healthPercent"], "canAttack": c["canAttack"],
-                     "pos": c["pos"], "struct_va": c["struct_va"]}
-                    for c in result["candidates"] if in_id_family(c["id"])]
+                name_to_scan = expected or args.player_name
+                if not name_to_scan and pid:
+                    title = client_window_title(pid)
+                    if title and " - " in title:
+                        candidate_name = title.split(" - ", 1)[1].strip()
+                        if candidate_name:
+                            name_to_scan = candidate_name
+                result = sc.scan_process(handle, pid, name_to_scan or "Nobutdopai")
+                creatures = result.get("creatures", [])
                 creature_holder["snapshot"] = {
                     "creatures": creatures,
                     "generatedAt": datetime.datetime.now(datetime.timezone.utc).isoformat(),
@@ -330,8 +336,15 @@ def main(argv=None) -> int:
                 cached_va = int(candidate["struct_va"], 16)
         if player is None and now - last_relocate >= args.relocate_min_interval_s:
             last_relocate = now
-            if args.player_name:
-                va = pe.locate_by_name(handle, args.player_name, layout, filters,
+            name_to_find = expected or args.player_name
+            if not name_to_find and pid:
+                title = client_window_title(pid)
+                if title and " - " in title:
+                    candidate_name = title.split(" - ", 1)[1].strip()
+                    if candidate_name:
+                        expected = name_to_find = candidate_name
+            if name_to_find:
+                va = pe.locate_by_name(handle, name_to_find, layout, filters,
                                        args.id_offset, None)
                 if va:
                     cached_va = va
@@ -391,6 +404,9 @@ def run_selftest() -> int:
 
     direct = read_entity(read, entity, layout, filters)
     assert direct and direct["name"] == "Charizard" and direct["pos"] == {"x": 3299, "y": 2219, "z": 7}, direct
+    missing_hp = read_entity(lambda va, n: None if va == entity + layout.hp_offset else read(va, n),
+                             entity, layout, filters)
+    assert missing_hp["hp"] is None and missing_hp["healthPercent"] is None
     assert read_entity(read, 0x200009000, layout, filters) is None  # empty slot rejected
 
     one = resolve_chain(read, MODULE_BASE, indirect_rva, [0x1A8], layout, filters)

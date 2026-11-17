@@ -1,0 +1,22 @@
+return {
+  enabled=false,
+  captureEnabled=false,
+  captureAfterCombat=false,
+  captureRandomMode=false,
+  captureDelay=500,
+  captureEntries={
+    {corpseId=35602,ballId=15650,fallbackBallId=3552},
+    {corpseId=6477,ballId=15650,fallbackBallId=0},
+    {corpseId=3998,ballId=15650,fallbackBallId=0},
+    {corpseId=35593,ballId=15650,fallbackBallId=0},
+    {corpseId=24349,ballId=3552,fallbackBallId=15650},
+    {corpseId=24845,ballId=3552,fallbackBallId=0},
+    {corpseId=25177,ballId=15650,fallbackBallId=0},
+    {corpseId=35781,ballId=15650,fallbackBallId=0},
+  },
+  lootCorpseIds={
+  },
+  maxLootDist=15,
+  lootMode="while_killing",
+  debugLootEffects=false,
+}

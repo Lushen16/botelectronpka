@@ -1,0 +1,89 @@
+{
+  "_comment": "Faixas por build. Gerado 2026-11-07 para o cliente atualizado as 13:56:52 (PID 24800). NAO reutilizar em outro build: --verify-ranges acusa.",
+  "_build": {
+    "exePath": "C:\\Users\\yago\\AppData\\Local\\PokeAlliance Games\\PokeAlliance\\PokeAlliance_dx.exe",
+    "exeSize": 30921776,
+    "sha256": "48C41BD4422842E7A73890C4E65FC0714BEB80C191CA274612A86EBE27B0AC2B",
+    "md5": "1D186E8853D1FEED7B892FC155CB8493",
+    "peTimeDateStamp": 1794019801,
+    "moduleSize": 103645184,
+    "note": "executavel em disco e packed (.text RawSize 0); padroes so existem apos o loader desempacotar"
+  },
+  "_method": {
+    "reference": "docx NATIVE_EXECUTOR_CONTRACT.md, rodada 19",
+    "deltaGameWalk": "0x1a40",
+    "deltaNote": "o delta +0x1a40 vale para Game::walk e para os 4 pontos do par +0x9a8/+0x9b0; NAO e global e NAO foi aplicado as outras faixas",
+    "verifiedHow": [
+      "inicio de funcao na tabela .pdata em memoria",
+      "tamanho 1524 B identico ao build de referencia",
+      "prologo 48895c2408555657 identico",
+      "os 4 pontos documentados do par shared_ptr (+0x9a8/+0x9b0) batem byte a byte com delta +0x1a40"
+    ]
+  },
+  "ranges": [
+    {
+      "name": "Game::walk",
+      "start": "0x780c90",
+      "end": "0x781284",
+      "head": "48895c2408555657",
+      "verified": true,
+      "note": "unica faixa confirmada neste build. Ancorada por .pdata + tamanho + prologo + par shared_ptr."
+    },
+    {
+      "name": "wrapper-setWalkActive",
+      "start": "0x7b6180",
+      "end": "0x7b61f7",
+      "head": "",
+      "verified": false,
+      "note": "rva antigo + 0x1a40 NAO bate. Nao usar para hit. Reancorar com xref ao Game::walk."
+    },
+    {
+      "name": "lambda-autowalk-tick",
+      "start": "0x998540",
+      "end": "0x998630",
+      "head": "",
+      "verified": false,
+      "note": "rva antigo + 0x1a40 NAO bate; padrao antigo nao existe na memoria. Reancorar."
+    },
+    {
+      "name": "startAutoWalkLoop",
+      "start": "0x7b6200",
+      "end": "0x7b6488",
+      "head": "",
+      "verified": false,
+      "note": "rva antigo + 0x1a40 NAO bate. Reancorar."
+    },
+    {
+      "name": "stopAutoWalk",
+      "start": "0x7b6490",
+      "end": "0x7b6533",
+      "head": "",
+      "verified": false,
+      "note": "rva antigo + 0x1a40 NAO bate. Reancorar."
+    },
+    {
+      "name": "setDirection-and-call",
+      "start": "0x7b8910",
+      "end": "0x7b898c",
+      "head": "",
+      "verified": false,
+      "note": "rva antigo + 0x1a40 NAO bate. Reancorar."
+    },
+    {
+      "name": "input-direction-calc",
+      "start": "0x37b17f",
+      "end": "0x37b249",
+      "head": "",
+      "verified": false,
+      "note": "rva antigo + 0x1a40 NAO bate. Reancorar."
+    },
+    {
+      "name": "input-apply-dir",
+      "start": "0x7464c0",
+      "end": "0x7465c0",
+      "head": "",
+      "verified": false,
+      "note": "rva antigo + 0x1a40 NAO bate. Reancorar."
+    }
+  ]
+}

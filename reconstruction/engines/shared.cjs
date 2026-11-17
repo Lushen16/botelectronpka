@@ -64,6 +64,10 @@ function ready(snapshot) {
   if (Number(session.ageMs) > 1000) return false;
   if (!telemetry || telemetry.nativeVerified !== true || telemetry.pulseVersion !== 3) return false;
   if (!isPosition(telemetry.position)) return false;
+  /* Gate do runtime: `false` significa "no menu". `undefined` = DLL antiga,
+   * que nao publica o campo — nesse caso nao bloqueamos, senao toda DLL
+   * anterior a este campo ficaria inutil. */
+  if (session.runtimeReady === false || telemetry.runtimeReady === false) return false;
   return true;
 }
 

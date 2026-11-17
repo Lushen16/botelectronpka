@@ -10,8 +10,8 @@ function rpmSession(raw, now = Date.now()) {
       || !Number.isFinite(ageMs) || ageMs < 0) return null;
   const health = Number.isFinite(raw.player?.healthPercent) ? raw.player.healthPercent
     : Number.isFinite(raw.player?.hp) ? raw.player.hp
-    : 100;
-  const healthPercent = Number.isFinite(health) && health >= 0 && health <= 100 ? health : 100;
+    : undefined;
+  const healthPercent = Number.isFinite(health) && health >= 0 && health <= 100 ? health : undefined;
   const creaturesAge = now - Date.parse(raw.creaturesGeneratedAt);
   const freshCreatures = Number.isFinite(creaturesAge) && creaturesAge >= 0 && creaturesAge <= 1000;
   return {

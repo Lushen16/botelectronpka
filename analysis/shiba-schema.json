@@ -1,0 +1,1662 @@
+{
+ "tabs": [
+  {
+   "key": "scripts",
+   "label": "Scripts",
+   "capability": "lua",
+   "source": "09_ui_scripts.lua",
+   "fields": [
+    {
+     "key": "scripts.entries",
+     "label": "Scripts",
+     "type": "list",
+     "help": null,
+     "itemFields": [
+      {
+       "key": "name",
+       "label": "Nome",
+       "type": "text",
+       "default": "Novo script"
+      },
+      {
+       "key": "interval",
+       "label": "Intervalo (ms)",
+       "type": "number",
+       "default": 500
+      },
+      {
+       "key": "code",
+       "label": "Código Lua",
+       "type": "code",
+       "default": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "key": "target",
+   "label": "Target",
+   "capability": "creatures",
+   "source": "05_target.lua / 11_ui_target.lua",
+   "fields": [
+    {
+     "key": "target.ignoredCreaturesText",
+     "label": "Ignorar criaturas (vírgulas)",
+     "type": "text",
+     "default": "",
+     "options": null,
+     "help": null
+    },
+    {
+     "key": "target.shinyPriorityEnabled",
+     "label": "Prioridade para Shiny",
+     "type": "boolean",
+     "default": false,
+     "options": null,
+     "help": null
+    },
+    {
+     "key": "target.instanceModeEnabled",
+     "label": "Modo instância",
+     "type": "boolean",
+     "default": false,
+     "options": null,
+     "help": null
+    },
+    {
+     "key": "target.lowHpComboPercent",
+     "label": "HP de emergência do combo %",
+     "type": "number",
+     "default": 0,
+     "min": 0,
+     "max": 100,
+     "options": null,
+     "help": null
+    },
+    {
+     "key": "target.monsters",
+     "label": "Criaturas configuradas",
+     "type": "list",
+     "help": null,
+     "itemFields": [
+      {
+       "key": "name",
+       "label": "Nome do monstro (* = qualquer)",
+       "type": "text",
+       "default": "*"
+      },
+      {
+       "key": "spell",
+       "label": "Skill sem combo (mX)",
+       "type": "text",
+       "default": ""
+      },
+      {
+       "key": "hp",
+       "label": "Usar a skill com o alvo até HP %",
+       "type": "number",
+       "default": 100
+      },
+      {
+       "key": "range",
+       "label": "Alcance (SQM)",
+       "type": "number",
+       "default": 7
+      },
+      {
+       "key": "priority",
+       "label": "Prioridade",
+       "type": "number",
+       "default": 1
+      },
+      {
+       "key": "minCount",
+       "label": "Min Count (parar com)",
+       "type": "number",
+       "default": 1
+      },
+      {
+       "key": "creatureType",
+       "label": "Tipo",
+       "type": "select",
+       "default": 1
+      },
+      {
+       "key": "movement",
+       "label": "Movimento",
+       "type": "select",
+       "default": "chase"
+      },
+      {
+       "key": "kiteRange",
+       "label": "Distância do Kite (SQM)",
+       "type": "number",
+       "default": 2
+      },
+      {
+       "key": "randomMoves",
+       "label": "Movimentos do Random",
+       "type": "object"
+      }
+     ]
+    },
+    {
+     "key": "target.combo",
+     "label": "Combo",
+     "type": "object",
+     "help": null
+    },
+    {
+     "key": "target.combo.enabled",
+     "label": "Ativado no perfil",
+     "type": "boolean",
+     "default": false,
+     "options": null,
+     "help": null
+    },
+    {
+     "key": "target.combo.sequenceText",
+     "label": "Sequência de skills",
+     "type": "text",
+     "default": "m5",
+     "options": null,
+     "help": null
+    },
+    {
+     "key": "target.combo.stepDelay",
+     "label": "Intervalo entre skills (ms)",
+     "type": "number",
+     "default": 250,
+     "min": 0,
+     "max": 3600000,
+     "options": null,
+     "help": null
+    },
+    {
+     "key": "target.combo.lureDelay",
+     "label": "Espera antes do 1º combo (ms)",
+     "type": "number",
+     "default": 1000,
+     "min": 0,
+     "max": 3600000,
+     "options": null,
+     "help": null
+    },
+    {
+     "key": "target.combo.finishRemainingCount",
+     "label": "Seguir a rota se sobrarem até",
+     "type": "number",
+     "default": 0,
+     "min": 0,
+     "max": 100,
+     "options": null,
+     "help": null
+    },
+    {
+     "key": "target.combo.finishIgnoreShiny",
+     "label": "Deixar Shiny para trás",
+     "type": "boolean",
+     "default": false,
+     "options": null,
+     "help": null
+    },
+    {
+     "key": "target.combo.useNativeSequence",
+     "label": "Sequência nativa",
+     "type": "boolean",
+     "default": false,
+     "options": null,
+     "help": null
+    },
+    {
+     "key": "target.combo.usePokeStop",
+     "label": "PokeStop",
+     "type": "boolean",
+     "default": false,
+     "options": null,
+     "help": null
+    },
+    {
+     "key": "target.combo.useMedicine",
+     "label": "Medicine para debuff",
+     "type": "boolean",
+     "default": false,
+     "options": null,
+     "help": null
+    },
+    {
+     "key": "target.combo.useMedicineBeforeCombo",
+     "label": "Medicine antes do combo",
+     "type": "boolean",
+     "default": false,
+     "options": null,
+     "help": null
+    },
+    {
+     "key": "target.combo.medicineHotkey",
+     "label": "Hotkey Medicine",
+     "type": "text",
+     "default": "",
+     "options": null,
+     "help": null
+    },
+    {
+     "key": "target.combo.medicineDelayMs",
+     "label": "Delay Medicine (ms)",
+     "type": "number",
+     "default": 50,
+     "min": 0,
+     "max": 3600000,
+     "options": null,
+     "help": null
+    },
+    {
+     "key": "target.combo.perfectingLureEnabled",
+     "label": "Perfect lure",
+     "type": "boolean",
+     "default": false,
+     "options": null,
+     "help": null
+    },
+    {
+     "key": "target.combo.perfectingLureHpPercent",
+     "label": "HP de segurança do Perfect %",
+     "type": "number",
+     "default": 30,
+     "min": 0,
+     "max": 100,
+     "options": null,
+     "help": null
+    },
+    {
+     "key": "target.combo.medicineActionBar",
+     "label": "Slot de Medicine na action bar (0 desliga)",
+     "type": "number",
+     "default": 0,
+     "min": 0,
+     "max": 50,
+     "options": null,
+     "help": null
+    },
+    {
+     "key": "target.combo.perfectingLureRange",
+     "label": "Alcance do Perfect",
+     "type": "number",
+     "default": 1,
+     "min": 1,
+     "max": 7,
+     "options": null,
+     "help": null
+    },
+    {
+     "key": "target.combo.perfectingSkillMaskEnabled",
+     "label": "Usar área desenhada",
+     "type": "boolean",
+     "default": false,
+     "options": null,
+     "help": null
+    },
+    {
+     "key": "target.combo.perfectingSkillMask",
+     "label": "Área da skill (offsets)",
+     "type": "list",
+     "help": null,
+     "itemFields": [
+      {
+       "key": "dx",
+       "label": "X",
+       "type": "number",
+       "default": 1
+      },
+      {
+       "key": "dy",
+       "label": "Y",
+       "type": "number",
+       "default": 0
+      }
+     ]
+    },
+    {
+     "key": "target.combo.perfectingReboxEnabled",
+     "label": "Rebox",
+     "type": "boolean",
+     "default": false,
+     "options": null,
+     "help": null
+    },
+    {
+     "key": "target.combo.bestTileEnabled",
+     "label": "Best Tile",
+     "type": "boolean",
+     "default": false,
+     "options": null,
+     "help": null
+    },
+    {
+     "key": "target.combo.targetCreaturesEnabled",
+     "label": "Marcar alvo no combo",
+     "type": "boolean",
+     "default": true,
+     "options": null,
+     "help": null
+    },
+    {
+     "key": "target.autoRevive",
+     "label": "Revive automático",
+     "type": "object",
+     "help": null
+    },
+    {
+     "key": "target.autoRevive.enabled",
+     "label": "Ativado no perfil",
+     "type": "boolean",
+     "default": false,
+     "options": null,
+     "help": null
+    },
+    {
+     "key": "target.autoRevive.hotkey",
+     "label": "Hotkey Revive",
+     "type": "text",
+     "default": "",
+     "options": null,
+     "help": null
+    },
+    {
+     "key": "target.autoRevive.interval",
+     "label": "Espera após última skill (ms)",
+     "type": "number",
+     "default": 1500,
+     "min": 1,
+     "max": 3600000,
+     "options": null,
+     "help": null
+    },
+    {
+     "key": "target.autoRevive.waitForPokemon",
+     "label": "Esperar Pokémon",
+     "type": "boolean",
+     "default": false,
+     "options": null,
+     "help": null
+    },
+    {
+     "key": "target.luring",
+     "label": "Luring",
+     "type": "object",
+     "help": null
+    },
+    {
+     "key": "target.luring.enabled",
+     "label": "Lure de Acompanhamento",
+     "type": "boolean",
+     "default": false,
+     "options": null,
+     "help": null
+    },
+    {
+     "key": "target.luring.maxDistance",
+     "label": "Distância máxima (SQM)",
+     "type": "number",
+     "default": 3,
+     "min": 1,
+     "max": 30,
+     "options": null,
+     "help": null
+    },
+    {
+     "key": "target.luring.frontEnabled",
+     "label": "Dynamic Lure",
+     "type": "boolean",
+     "default": false,
+     "options": null,
+     "help": null
+    },
+    {
+     "key": "target.luring.frontRegroupMargin",
+     "label": "Recuperar (SQM)",
+     "type": "number",
+     "default": 5,
+     "min": 4,
+     "max": 8,
+     "options": null,
+     "help": null
+    },
+    {
+     "key": "target.luring.frontRegroupSteps",
+     "label": "Liberar (SQM)",
+     "type": "number",
+     "default": 3,
+     "min": 1,
+     "max": 4,
+     "options": null,
+     "help": null
+    },
+    {
+     "key": "target.luring.randomEnabled",
+     "label": "Lure aleatório",
+     "type": "boolean",
+     "default": false,
+     "options": null,
+     "help": null
+    },
+    {
+     "key": "target.luring.randomMinSeconds",
+     "label": "Mínimo (s)",
+     "type": "number",
+     "default": 45,
+     "min": 1,
+     "max": 3600000,
+     "options": null,
+     "help": null
+    },
+    {
+     "key": "target.luring.randomMaxSeconds",
+     "label": "Máximo (s)",
+     "type": "number",
+     "default": 100,
+     "min": 1,
+     "max": 3600000,
+     "options": null,
+     "help": null
+    },
+    {
+     "key": "target.lureSkill",
+     "label": "Buff ao lurar",
+     "type": "object",
+     "help": null
+    },
+    {
+     "key": "target.lureSkill.enabled",
+     "label": "Ativado no perfil",
+     "type": "boolean",
+     "default": false,
+     "options": null,
+     "help": null
+    },
+    {
+     "key": "target.lureSkill.move",
+     "label": "Skill (mX)",
+     "type": "text",
+     "default": "m1",
+     "options": null,
+     "help": null
+    },
+    {
+     "key": "target.lureSkill.hpPercent",
+     "label": "HP %",
+     "type": "number",
+     "default": 50,
+     "min": 0,
+     "max": 100,
+     "options": null,
+     "help": null
+    },
+    {
+     "key": "target.healSkill",
+     "label": "Cura do Pokémon",
+     "type": "object",
+     "help": null
+    },
+    {
+     "key": "target.healSkill.enabled",
+     "label": "Ativado no perfil",
+     "type": "boolean",
+     "default": false,
+     "options": null,
+     "help": null
+    },
+    {
+     "key": "target.healSkill.move",
+     "label": "Skill (mX)",
+     "type": "text",
+     "default": "m1",
+     "options": null,
+     "help": null
+    },
+    {
+     "key": "target.healSkill.hpPercent",
+     "label": "HP %",
+     "type": "number",
+     "default": 50,
+     "min": 0,
+     "max": 100,
+     "options": null,
+     "help": null
+    },
+    {
+     "key": "target.combatStanceAuto",
+     "label": "Postura",
+     "type": "object",
+     "help": null
+    },
+    {
+     "key": "target.combatStanceAuto.enabled",
+     "label": "Alternar ofensivo / defensivo",
+     "type": "boolean",
+     "default": false,
+     "options": null,
+     "help": null
+    }
+   ]
+  },
+  {
+   "key": "healer",
+   "label": "Healer",
+   "capability": "pokemon",
+   "source": "11_ui_target.lua:6239",
+   "fields": [
+    {
+     "key": "healer.healHpPercent",
+     "label": "Curar player abaixo de HP % (0 desliga)",
+     "type": "number",
+     "default": 0,
+     "min": 0,
+     "max": 100,
+     "options": null,
+     "help": null
+    },
+    {
+     "key": "healer.healPokemonName",
+     "label": "Pokémon de cura",
+     "type": "text",
+     "default": "",
+     "options": null,
+     "help": null
+    },
+    {
+     "key": "healer.healMoveSlot",
+     "label": "Skill M",
+     "type": "number",
+     "default": 1,
+     "min": 1,
+     "max": 100,
+     "options": null,
+     "help": null
+    },
+    {
+     "key": "healer.healResetSlot",
+     "label": "Reset slot da action bar",
+     "type": "number",
+     "default": 1,
+     "min": 0,
+     "max": 50,
+     "options": null,
+     "help": null
+    },
+    {
+     "key": "healer.returnPokemonName",
+     "label": "Pokémon de retorno",
+     "type": "text",
+     "default": "",
+     "options": null,
+     "help": null
+    }
+   ]
+  },
+  {
+   "key": "walker",
+   "label": "Walker",
+   "capability": "map",
+   "source": "07_wk.lua / 12_ui_wk.lua",
+   "fields": [
+    {
+     "key": "walker.smartWalking",
+     "label": "Smart walking",
+     "type": "boolean",
+     "default": false,
+     "options": null,
+     "help": null
+    },
+    {
+     "key": "walker.startNearestWaypoint",
+     "label": "Iniciar no waypoint mais próximo",
+     "type": "boolean",
+     "default": false,
+     "options": null,
+     "help": null
+    },
+    {
+     "key": "walker.recordStepDistance",
+     "label": "Gravar a cada N tiles",
+     "type": "number",
+     "default": 5,
+     "min": 1,
+     "max": 100,
+     "options": null,
+     "help": null
+    },
+    {
+     "key": "walker.loop",
+     "label": "Repetir rota",
+     "type": "boolean",
+     "default": true,
+     "options": null,
+     "help": null
+    },
+    {
+     "key": "walker.mapPath",
+     "label": "Arquivo OTMM",
+     "type": "text",
+     "default": "",
+     "options": null,
+     "help": null
+    },
+    {
+     "key": "walker.luaProfile",
+     "label": "Perfil Lua da rota",
+     "type": "text",
+     "default": "",
+     "options": null,
+     "help": null
+    },
+    {
+     "key": "walker.luaRevision",
+     "label": "Revisão do arquivo Lua",
+     "type": "text",
+     "default": "",
+     "options": null,
+     "help": null
+    },
+    {
+     "key": "walker.guildDailyTier",
+     "label": "Tier da daily guild",
+     "type": "select",
+     "default": "normal",
+     "options": [
+      "normal",
+      "wildscape",
+      "primal"
+     ],
+     "help": null
+    },
+    {
+     "key": "walker.guildDailyElement",
+     "label": "Elemento da daily guild",
+     "type": "select",
+     "default": "normal",
+     "options": [
+      "normal",
+      "fire",
+      "fighting",
+      "water",
+      "flying",
+      "grass",
+      "poison",
+      "electric",
+      "ground",
+      "psychic",
+      "rock",
+      "ice",
+      "bug",
+      "dragon",
+      "ghost",
+      "dark",
+      "steel",
+      "fairy"
+     ],
+     "help": null
+    },
+    {
+     "key": "walker.guildDailyAutoEnabled",
+     "label": "Pegar daily ao iniciar o bot",
+     "type": "boolean",
+     "default": false,
+     "options": null,
+     "help": null
+    },
+    {
+     "key": "walker.guildDailyUseTicket",
+     "label": "Resetar com ticket ao concluir",
+     "type": "boolean",
+     "default": false,
+     "options": null,
+     "help": null
+    },
+    {
+     "key": "walker.guildDailyTicketHotkey",
+     "label": "Hotkey do ticket de reset",
+     "type": "text",
+     "default": "",
+     "options": null,
+     "help": null
+    },
+    {
+     "key": "walker.guildDailyTicketAmount",
+     "label": "Limite de tickets por 24 horas",
+     "type": "number",
+     "default": 1,
+     "min": 1,
+     "max": 1000,
+     "options": null,
+     "help": null
+    },
+    {
+     "key": "walker.waypoints",
+     "label": "Waypoints",
+     "type": "list",
+     "help": null,
+     "itemFields": [
+      {
+       "key": "action",
+       "label": "Ação",
+       "type": "select",
+       "default": "walk"
+      },
+      {
+       "key": "pos",
+       "label": "Posição",
+       "type": "object"
+      },
+      {
+       "key": "param",
+       "label": "Parâmetro / texto / código",
+       "type": "parameter",
+       "default": ""
+      },
+      {
+       "key": "stairCheckMonsters",
+       "label": "Verificar target na escada",
+       "type": "boolean",
+       "default": false
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "key": "looting",
+   "label": "CAPTURE",
+   "capability": "items",
+   "source": "13_ui_looting.lua",
+   "fields": [
+    {
+     "key": "looting.maxCaptureDist",
+     "label": "Alcance da captura (SQM)",
+     "type": "number",
+     "default": 3,
+     "min": 1,
+     "max": 30,
+     "options": null,
+     "help": null
+    },
+    {
+     "key": "looting.captureEnabled",
+     "label": "Captura ativada no perfil",
+     "type": "boolean",
+     "default": false,
+     "options": null,
+     "help": null
+    },
+    {
+     "key": "looting.captureAfterCombat",
+     "label": "Capturar após combate",
+     "type": "boolean",
+     "default": false,
+     "options": null,
+     "help": null
+    },
+    {
+     "key": "looting.captureRandomMode",
+     "label": "Captura aleatória",
+     "type": "boolean",
+     "default": false,
+     "options": null,
+     "help": null
+    },
+    {
+     "key": "looting.captureDelay",
+     "label": "Intervalo de captura (ms)",
+     "type": "number",
+     "default": 1000,
+     "min": 1,
+     "max": 3600000,
+     "options": null,
+     "help": null
+    },
+    {
+     "key": "looting.captureEntries",
+     "label": "Corpos para capturar",
+     "type": "list",
+     "help": null,
+     "itemFields": [
+      {
+       "key": "name",
+       "label": "Nome do corpo",
+       "type": "text",
+       "default": ""
+      },
+      {
+       "key": "corpseId",
+       "label": "ID do corpo",
+       "type": "number",
+       "default": 1
+      },
+      {
+       "key": "ballId",
+       "label": "ID da ball",
+       "type": "number",
+       "default": 0
+      },
+      {
+       "key": "fallbackBallId",
+       "label": "Ball alternativa",
+       "type": "number",
+       "default": 0
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "key": "alerts",
+   "label": "Alerts",
+   "capability": "alerts",
+   "source": "17_ui_alerts.lua / 18_alerts_module.lua",
+   "fields": [
+    {
+     "key": "alerts.pauseWithHotkey",
+     "label": "Respeitar pausa global",
+     "type": "boolean",
+     "default": true,
+     "options": null,
+     "help": null
+    },
+    {
+     "key": "alerts.rules",
+     "label": "Regras de alerta",
+     "type": "list",
+     "help": null,
+     "itemFields": [
+      {
+       "key": "name",
+       "label": "Nome",
+       "type": "text",
+       "default": "Nova regra"
+      },
+      {
+       "key": "enabled",
+       "label": "Ativada",
+       "type": "boolean",
+       "default": true
+      },
+      {
+       "key": "type",
+       "label": "Tipo",
+       "type": "select",
+       "default": "hp"
+      },
+      {
+       "key": "hpThreshold",
+       "label": "HP abaixo de %",
+       "type": "number",
+       "default": 30
+      },
+      {
+       "key": "hpOnce",
+       "label": "HP: uma vez por queda",
+       "type": "boolean",
+       "default": true
+      },
+      {
+       "key": "chatMode",
+       "label": "Canal",
+       "type": "select",
+       "default": "private"
+      },
+      {
+       "key": "creatureName",
+       "label": "Nome / curinga",
+       "type": "text",
+       "default": "*"
+      },
+      {
+       "key": "creatureRange",
+       "label": "Alcance de criatura",
+       "type": "number",
+       "default": 7
+      },
+      {
+       "key": "playerRange",
+       "label": "Alcance de player",
+       "type": "number",
+       "default": 5
+      },
+      {
+       "key": "huntPokemonNames",
+       "label": "Pokémons da hunt",
+       "type": "text",
+       "default": ""
+      },
+      {
+       "key": "teleportIntervalMs",
+       "label": "Verificar teleporte (ms)",
+       "type": "number",
+       "default": 500
+      },
+      {
+       "key": "soundMode",
+       "label": "Tipo de áudio",
+       "type": "select",
+       "default": "voice"
+      },
+      {
+       "key": "soundKind",
+       "label": "Beep clássico",
+       "type": "select",
+       "default": "default"
+      },
+      {
+       "key": "soundEnabled",
+       "label": "Som",
+       "type": "boolean",
+       "default": true
+      },
+      {
+       "key": "soundRepeatEnabled",
+       "label": "Repetir som",
+       "type": "boolean",
+       "default": false
+      },
+      {
+       "key": "soundRepeatSeconds",
+       "label": "Repetição (s)",
+       "type": "number",
+       "default": 10
+      },
+      {
+       "key": "frontEnabled",
+       "label": "Focar cliente",
+       "type": "boolean",
+       "default": false
+      },
+      {
+       "key": "logoutEnabled",
+       "label": "Logout",
+       "type": "boolean",
+       "default": false
+      },
+      {
+       "key": "talkEnabled",
+       "label": "Enviar mensagem",
+       "type": "boolean",
+       "default": false
+      },
+      {
+       "key": "talkMsg",
+       "label": "Mensagens (vírgulas)",
+       "type": "text",
+       "default": ""
+      },
+      {
+       "key": "talkCooldownSec",
+       "label": "Intervalo de mensagem (s)",
+       "type": "number",
+       "default": 10
+      },
+      {
+       "key": "pauseWk",
+       "label": "Pausar walker",
+       "type": "boolean",
+       "default": false
+      },
+      {
+       "key": "pauseTarget",
+       "label": "Pausar target",
+       "type": "boolean",
+       "default": false
+      },
+      {
+       "key": "pauseLooting",
+       "label": "Pausar loot",
+       "type": "boolean",
+       "default": false
+      },
+      {
+       "key": "gmArrowMode",
+       "label": "Seta GM",
+       "type": "select",
+       "default": "stop"
+      },
+      {
+       "key": "gmArrowMsg",
+       "label": "Mensagem ao chegar",
+       "type": "text",
+       "default": ""
+      },
+      {
+       "key": "gmArrowMsgDelaySec",
+       "label": "Delay da mensagem (s)",
+       "type": "number",
+       "default": 2
+      },
+      {
+       "key": "gmArrowSpinEnabled",
+       "label": "Girar",
+       "type": "boolean",
+       "default": false
+      },
+      {
+       "key": "gmArrowSpinSeconds",
+       "label": "Girar por (s)",
+       "type": "number",
+       "default": 4
+      }
+     ]
+    },
+    {
+     "key": "alerts.gmMessageActiveProfile",
+     "label": "Perfil de mensagens GM",
+     "type": "text",
+     "default": "default",
+     "options": null,
+     "help": null
+    },
+    {
+     "key": "alerts.gmMessageProfilesJson",
+     "label": "Blacklist e pendências por perfil (JSON)",
+     "type": "code",
+     "default": "",
+     "options": null,
+     "help": null
+    },
+    {
+     "key": "alerts.gmMessageRevision",
+     "label": "Revisão das mensagens GM",
+     "type": "number",
+     "default": 0,
+     "min": 0,
+     "max": 2147483647,
+     "options": null,
+     "help": null
+    }
+   ]
+  },
+  {
+   "key": "hoenn",
+   "label": "Hoenn",
+   "capability": "pokemon",
+   "source": "15_hoenn_module.lua / 16_ui_hoenn.lua",
+   "fields": [
+    {
+     "key": "hoenn.formation",
+     "label": "Formação",
+     "type": "select",
+     "default": "2x3",
+     "options": [
+      "2x3",
+      "3x2"
+     ],
+     "help": null
+    },
+    {
+     "key": "hoenn.minWildsToEngage",
+     "label": "Parar com (selvagens na tela)",
+     "type": "number",
+     "default": 8,
+     "min": 1,
+     "max": 100,
+     "options": null,
+     "help": "O Hoenn para a rota e começa a lure com esta quantidade de selvagens na tela. No Perfect lure é também quantos precisam colar no tank. Máximo útil: 8."
+    },
+    {
+     "key": "hoenn.ignoredCreaturesText",
+     "label": "Ignorar criaturas",
+     "type": "text",
+     "default": "",
+     "options": null,
+     "help": "Nomes que o Hoenn não conta nem ataca, separados por vírgula. * vale como curinga."
+    },
+    {
+     "key": "hoenn.targetShinyEnabled",
+     "label": "Mirar no Shiny",
+     "type": "boolean",
+     "default": true,
+     "options": null,
+     "help": "Com Shiny na box, o combo depois do !pokestop marca o Shiny como alvo."
+    },
+    {
+     "key": "hoenn.forceBox",
+     "label": "Forçar BOX",
+     "type": "boolean",
+     "default": false,
+     "options": null,
+     "help": "Ao atingir Parar com, segue direto ao próximo waypoint BOX da rota. Se estiver bloqueado, tenta outra BOX; sem alternativa, combate no local. Desmarcado: combate por quantidade de selvagens na tela."
+    },
+    {
+     "key": "hoenn.perfectLure",
+     "label": "Perfect lure",
+     "type": "boolean",
+     "default": true,
+     "options": null,
+     "help": "O tank só solta o combo com os selvagens colados nele (a box fechada)."
+    },
+    {
+     "key": "hoenn.perfectLureTimeoutMs",
+     "label": "Perfect: soltar após (ms)",
+     "type": "number",
+     "default": 10000,
+     "min": 0,
+     "max": 3600000,
+     "options": null,
+     "help": "Numa lure comum, o combo sai depois deste tempo mesmo sem a box fechar. Numa BOX ele espera fechar."
+    },
+    {
+     "key": "hoenn.perfectLureMinHp",
+     "label": "Perfect: soltar com HP do tank até %",
+     "type": "number",
+     "default": 60,
+     "min": 0,
+     "max": 100,
+     "options": null,
+     "help": "Se o HP do tank cair para este valor, o combo sai na hora, com a box fechada ou não. 0 desliga."
+    },
+    {
+     "key": "hoenn.bestTile",
+     "label": "Best Tile",
+     "type": "boolean",
+     "default": true,
+     "options": null,
+     "help": "Antes do !pokestop, leva o tank para o tile que pega mais selvagens."
+    },
+    {
+     "key": "hoenn.bestTileRange",
+     "label": "Best Tile: raio (SQM)",
+     "type": "number",
+     "default": 4,
+     "min": 1,
+     "max": 6,
+     "options": null,
+     "help": "Até que distância do tank o Best Tile procura o tile melhor."
+    },
+    {
+     "key": "hoenn.bestTileMaxWaitMs",
+     "label": "Best Tile: espera máxima (ms)",
+     "type": "number",
+     "default": 2500,
+     "min": 0,
+     "max": 3600000,
+     "options": null,
+     "help": "Tempo máximo esperando o tank chegar no tile escolhido."
+    },
+    {
+     "key": "hoenn.bestTileRetryMs",
+     "label": "Best Tile: repetir ordem (ms)",
+     "type": "number",
+     "default": 700,
+     "min": 1,
+     "max": 3600000,
+     "options": null,
+     "help": "De quanto em quanto tempo a ordem de ir ao tile é repetida."
+    },
+    {
+     "key": "hoenn.deployToPokestopMs",
+     "label": "Troca → PokeStop (ms)",
+     "type": "number",
+     "default": 200,
+     "min": 0,
+     "max": 3600000,
+     "options": null,
+     "help": "Espera entre o Pokémon sair da ball e o !pokestop."
+    },
+    {
+     "key": "hoenn.pokestopToComboMs",
+     "label": "PokeStop → combo (ms)",
+     "type": "number",
+     "default": 400,
+     "min": 0,
+     "max": 3600000,
+     "options": null,
+     "help": "Espera entre o !pokestop e o combo, para o Pokémon parar."
+    },
+    {
+     "key": "hoenn.pokeReadyTimeoutMs",
+     "label": "Espera pelo Pokémon (ms)",
+     "type": "number",
+     "default": 3000,
+     "min": 0,
+     "max": 3600000,
+     "options": null,
+     "help": "Se um DPS não aparecer no mapa neste tempo, o Hoenn pula para o próximo."
+    },
+    {
+     "key": "hoenn.comboFallbackMs",
+     "label": "Fim do combo sem resposta (ms)",
+     "type": "number",
+     "default": 3000,
+     "min": 0,
+     "max": 3600000,
+     "options": null,
+     "help": "Sem cooldown novo das skills por este tempo, o combo é dado como terminado."
+    },
+    {
+     "key": "hoenn.potionHotkey",
+     "label": "Hotkey Potion",
+     "type": "text",
+     "default": "",
+     "options": null,
+     "help": "Tecla da action bar com a potion em “Usar no Pokémon”."
+    },
+    {
+     "key": "hoenn.potionActionBar",
+     "label": "Slot antigo de potion (0 desliga)",
+     "type": "number",
+     "default": 3,
+     "min": 0,
+     "max": 50,
+     "options": null,
+     "help": "Só para perfis antigos sem hotkey: o slot da action bar com a potion."
+    },
+    {
+     "key": "hoenn.potionHpPercent",
+     "label": "Potion abaixo de HP %",
+     "type": "number",
+     "default": 60,
+     "min": 0,
+     "max": 100,
+     "options": null,
+     "help": "Usa potion no Pokémon fora da ball quando o HP dele ficar abaixo deste valor."
+    },
+    {
+     "key": "hoenn.potionCooldownMs",
+     "label": "Intervalo de potion (ms)",
+     "type": "number",
+     "default": 1500,
+     "min": 1,
+     "max": 3600000,
+     "options": null,
+     "help": "Tempo mínimo entre duas potions."
+    },
+    {
+     "key": "hoenn.useMedicine",
+     "label": "Medicine",
+     "type": "boolean",
+     "default": true,
+     "options": null,
+     "help": "Usa Medicine quando o Pokémon fica com efeito negativo (paralisia, veneno…)."
+    },
+    {
+     "key": "hoenn.medicineHotkey",
+     "label": "Hotkey Medicine",
+     "type": "text",
+     "default": "",
+     "options": null,
+     "help": "Tecla da action bar com a Medicine em “Usar no Pokémon”."
+    },
+    {
+     "key": "hoenn.positionAround",
+     "label": "Posicionar treinador ao tank",
+     "type": "boolean",
+     "default": true,
+     "options": null,
+     "help": "Depois do !pokestop, o treinador anda para um tile em cruz a N SQM do tank e vira para a box."
+    },
+    {
+     "key": "hoenn.positionTiles",
+     "label": "Distância do tank (SQM)",
+     "type": "number",
+     "default": 2,
+     "min": 1,
+     "max": 5,
+     "options": null,
+     "help": "Quantos SQM o treinador fica do tank quando “Posicionar treinador ao tank” está ligado."
+    },
+    {
+     "key": "hoenn.medicineActionBar",
+     "label": "Slot de Medicine na action bar (0 desliga)",
+     "type": "number",
+     "default": 0,
+     "min": 0,
+     "max": 50,
+     "options": null,
+     "help": "Só para perfis antigos sem hotkey: o slot da action bar com a Medicine."
+    },
+    {
+     "key": "hoenn.useSafeSpot",
+     "label": "Recuperar no Safe Spot",
+     "type": "boolean",
+     "default": true,
+     "options": null,
+     "help": "Se sobrar selvagem vivo depois do time, o treinador corre para o próximo Safe Spot da rota para recuperar o time."
+    },
+    {
+     "key": "hoenn.forceSafeSpotRecovery",
+     "label": "Sempre recuperar no Safe Spot",
+     "type": "boolean",
+     "default": false,
+     "options": null,
+     "help": "Vai para o Safe Spot depois de toda lure, mesmo sem selvagem vivo."
+    },
+    {
+     "key": "hoenn.safeSpotTimeoutMs",
+     "label": "Tempo máximo até o Safe Spot (ms)",
+     "type": "number",
+     "default": 15000,
+     "min": 0,
+     "max": 3600000,
+     "options": null,
+     "help": "Se não chegar ao Safe Spot neste tempo, recupera o time onde estiver."
+    },
+    {
+     "key": "hoenn.shinyRetreatDelayMs",
+     "label": "Shiny: sair após o combo (ms)",
+     "type": "number",
+     "default": 0,
+     "min": 0,
+     "max": 10000,
+     "options": null,
+     "help": "Com Shiny vivo no último combo do time, o treinador sai para o Safe Spot este tempo depois de soltar o combo. 0 = na hora."
+    },
+    {
+     "key": "hoenn.useReadyGate",
+     "label": "Esperar skills prontas",
+     "type": "boolean",
+     "default": true,
+     "options": null,
+     "help": "Antes da próxima lure, espera as skills do time que vai entrar chegarem ao % abaixo."
+    },
+    {
+     "key": "hoenn.gateReadyPct",
+     "label": "Skills prontas %",
+     "type": "number",
+     "default": 80,
+     "min": 0,
+     "max": 100,
+     "options": null,
+     "help": "Quanto da barra azul (skills prontas) cada Pokémon do próximo time precisa ter."
+    },
+    {
+     "key": "hoenn.gateMinHp",
+     "label": "HP mínimo do tank %",
+     "type": "number",
+     "default": 90,
+     "min": 0,
+     "max": 100,
+     "options": null,
+     "help": "O próximo time só sai com o tank com pelo menos este HP."
+    },
+    {
+     "key": "hoenn.gateDpsMinHp",
+     "label": "HP mínimo dos DPS %",
+     "type": "number",
+     "default": 90,
+     "min": 0,
+     "max": 100,
+     "options": null,
+     "help": "O próximo time só sai com cada DPS com pelo menos este HP."
+    },
+    {
+     "key": "hoenn.gateMaxWaitMs",
+     "label": "Aviso de espera longa (ms)",
+     "type": "number",
+     "default": 60000,
+     "min": 0,
+     "max": 3600000,
+     "options": null,
+     "help": "Se a recuperação passar deste tempo, aparece um aviso dizendo quem está segurando. O bot continua esperando."
+    },
+    {
+     "key": "hoenn.cycleAtSafeSpot",
+     "label": "Alternar Pokémon na recuperação",
+     "type": "boolean",
+     "default": false,
+     "options": null,
+     "help": "Na recuperação, coloca os Pokémon do próximo time para fora um de cada vez (a barra carrega mais rápido fora da ball). O tank sai por último."
+    },
+    {
+     "key": "hoenn.autoStance",
+     "label": "Postura automática",
+     "type": "boolean",
+     "default": true,
+     "options": null,
+     "help": "Troca a postura (ofensiva/defensiva) sozinho: defensiva andando e na recuperação."
+    },
+    {
+     "key": "hoenn.roster",
+     "label": "Roster (identidade por UUID)",
+     "type": "list",
+     "help": null,
+     "itemFields": [
+      {
+       "key": "key",
+       "label": "Chave",
+       "type": "text",
+       "default": ""
+      },
+      {
+       "key": "uuid",
+       "label": "UUID",
+       "type": "text",
+       "default": ""
+      },
+      {
+       "key": "name",
+       "label": "Nome",
+       "type": "text",
+       "default": ""
+      },
+      {
+       "key": "role",
+       "label": "Função",
+       "type": "select",
+       "default": "dps"
+      },
+      {
+       "key": "dwellMs",
+       "label": "Espera antes de trocar (ms)",
+       "type": "number",
+       "default": 1500
+      },
+      {
+       "key": "usePokestop",
+       "label": "PokeStop",
+       "type": "boolean",
+       "default": true
+      },
+      {
+       "key": "toPoke",
+       "label": "To Poke",
+       "type": "boolean",
+       "default": true
+      },
+      {
+       "key": "readyPct",
+       "label": "Skills prontas %",
+       "type": "number",
+       "default": 80
+      },
+      {
+       "key": "buffOn",
+       "label": "Buff",
+       "type": "boolean",
+       "default": false
+      },
+      {
+       "key": "buffMove",
+       "label": "Skill do buff",
+       "type": "number",
+       "default": 1
+      },
+      {
+       "key": "buffHp",
+       "label": "HP do buff %",
+       "type": "number",
+       "default": 60
+      },
+      {
+       "key": "healOn",
+       "label": "Cura",
+       "type": "boolean",
+       "default": false
+      },
+      {
+       "key": "healMove",
+       "label": "Skill de cura",
+       "type": "number",
+       "default": 1
+      },
+      {
+       "key": "healHp",
+       "label": "HP da cura %",
+       "type": "number",
+       "default": 50
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "key": "tools",
+   "label": "Tools",
+   "capability": "hotkeys",
+   "source": "19_tools_module.lua / 20_ui_tools.lua",
+   "fields": [
+    {
+     "key": "tools.menuHotkey",
+     "label": "Tecla do menu",
+     "type": "text",
+     "default": "Insert",
+     "options": null,
+     "help": "Mostra ou esconde este menu, com o jogo ou o menu em foco."
+    },
+    {
+     "key": "tools.pauseHotkey",
+     "label": "Tecla de pausa",
+     "type": "text",
+     "default": "Home",
+     "options": null,
+     "help": "Pausa todos os módulos; aperte de novo para continuar de onde parou. Só vale com o jogo ou o menu em foco."
+    },
+    {
+     "key": "tools.consumable1",
+     "label": "Consumível 1",
+     "type": "object",
+     "help": "Ao ativar com o bot em execução, usa na hora e repete após 10, 20 e 30 segundos. Respeita a pausa geral."
+    },
+    {
+     "key": "tools.consumable1.enabled",
+     "label": "Ativar este slot",
+     "type": "boolean",
+     "default": false,
+     "options": null,
+     "help": null
+    },
+    {
+     "key": "tools.consumable1.hotkey",
+     "label": "Hotkey do item",
+     "type": "text",
+     "default": "",
+     "options": null,
+     "help": "Hotkey na action bar com Usar, Usar em si ou Usar no Pokémon."
+    },
+    {
+     "key": "tools.consumable1.intervalMinutes",
+     "label": "Usar a cada (min)",
+     "type": "number",
+     "default": 60,
+     "min": 1,
+     "max": 10080,
+     "options": null,
+     "help": "Usa ao ativar e repete a sequência neste intervalo. Cada sequência faz quatro tentativas, com dez segundos entre elas."
+    },
+    {
+     "key": "tools.consumable2",
+     "label": "Consumível 2",
+     "type": "object",
+     "help": "Ao ativar com o bot em execução, usa na hora e repete após 10, 20 e 30 segundos. Respeita a pausa geral."
+    },
+    {
+     "key": "tools.consumable2.enabled",
+     "label": "Ativar este slot",
+     "type": "boolean",
+     "default": false,
+     "options": null,
+     "help": null
+    },
+    {
+     "key": "tools.consumable2.hotkey",
+     "label": "Hotkey do item",
+     "type": "text",
+     "default": "",
+     "options": null,
+     "help": "Hotkey na action bar com Usar, Usar em si ou Usar no Pokémon."
+    },
+    {
+     "key": "tools.consumable2.intervalMinutes",
+     "label": "Usar a cada (min)",
+     "type": "number",
+     "default": 60,
+     "min": 1,
+     "max": 10080,
+     "options": null,
+     "help": "Usa ao ativar e repete a sequência neste intervalo. Cada sequência faz quatro tentativas, com dez segundos entre elas."
+    },
+    {
+     "key": "tools.consumable3",
+     "label": "Consumível 3",
+     "type": "object",
+     "help": "Ao ativar com o bot em execução, usa na hora e repete após 10, 20 e 30 segundos. Respeita a pausa geral."
+    },
+    {
+     "key": "tools.consumable3.enabled",
+     "label": "Ativar este slot",
+     "type": "boolean",
+     "default": false,
+     "options": null,
+     "help": null
+    },
+    {
+     "key": "tools.consumable3.hotkey",
+     "label": "Hotkey do item",
+     "type": "text",
+     "default": "",
+     "options": null,
+     "help": "Hotkey na action bar com Usar, Usar em si ou Usar no Pokémon."
+    },
+    {
+     "key": "tools.consumable3.intervalMinutes",
+     "label": "Usar a cada (min)",
+     "type": "number",
+     "default": 60,
+     "min": 1,
+     "max": 10080,
+     "options": null,
+     "help": "Usa ao ativar e repete a sequência neste intervalo. Cada sequência faz quatro tentativas, com dez segundos entre elas."
+    },
+    {
+     "key": "tools.consumable4",
+     "label": "Consumível 4",
+     "type": "object",
+     "help": "Ao ativar com o bot em execução, usa na hora e repete após 10, 20 e 30 segundos. Respeita a pausa geral."
+    },
+    {
+     "key": "tools.consumable4.enabled",
+     "label": "Ativar este slot",
+     "type": "boolean",
+     "default": false,
+     "options": null,
+     "help": null
+    },
+    {
+     "key": "tools.consumable4.hotkey",
+     "label": "Hotkey do item",
+     "type": "text",
+     "default": "",
+     "options": null,
+     "help": "Hotkey na action bar com Usar, Usar em si ou Usar no Pokémon."
+    },
+    {
+     "key": "tools.consumable4.intervalMinutes",
+     "label": "Usar a cada (min)",
+     "type": "number",
+     "default": 60,
+     "min": 1,
+     "max": 10080,
+     "options": null,
+     "help": "Usa ao ativar e repete a sequência neste intervalo. Cada sequência faz quatro tentativas, com dez segundos entre elas."
+    }
+   ]
+  }
+ ]
+}

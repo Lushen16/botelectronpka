@@ -1,0 +1,1 @@
+return {phase="casting",status="ultimo combo - aguardando fim",mode="pokemon",player="2014,5138,7",pokemon="2014,5136,7",target="",idx=3,ring=0,screen=0,elapsedMs=8618,noProgressMs=8618,remainingMs=6382,done=true,blocked=false,preWalking=false,forceBox=true,waypoint=0}

@@ -16,7 +16,10 @@ const config = (patch = {}) => ({
   target: { combo: { enabled: false, sequenceText: '', stepDelay: 250 }, healSkill: {}, lureSkill: {}, ...patch.target },
   hoenn: { perfectLure: false, minWildsToEngage: 0, potionHpPercent: 0, useMedicine: false, ...patch.hoenn },
   healer: { healHpPercent: 0, ...patch.healer },
-  walker: { loop: true, waypoints: [], ...patch.walker },
+  /* `stepIntervalMs: 0`: a maioria destes testes avanca o relogio em 100 ms,
+   * abaixo do piso de 406 ms medido no cliente real. O piso tem teste proprio
+   * mais abaixo ("piso de cadencia..."), onde ele fica LIGADO de proposito. */
+  walker: { loop: true, stepIntervalMs: 0, waypoints: [], ...patch.walker },
 });
 
 const roster = [{ slot: 1, uuid: 'uuid-1', name: 'Charizard' }];
@@ -61,6 +64,33 @@ test('walker steps one tile per tick and reports the direction', () => {
   const arrived = engine.step({ position: { x: 103, y: 100, z: 7 } }, recorder, 200);
   assert.equal(arrived.action, 'advance');
   assert.deepEqual(recorder.events.map(event => [event.name, event.parameter]), [['walk', 1], ['walk', 1]]);
+});
+
+test('walker accepts a diagonal tile after approaching a regular waypoint', () => {
+  const engine = createWalkerEngine(config({ walker: { waypoints: [
+    { action: 'walk', pos: { x: 103, y: 101, z: 7 } },
+    { action: 'walk', pos: { x: 103, y: 100, z: 7 } },
+  ] } }));
+  const recorder = createRecorder();
+  engine.step({ position: { x: 100, y: 100, z: 7 } }, recorder, 0);
+  const adjacent = { position: { x: 102, y: 100, z: 7 } };
+  const result = engine.step(adjacent, recorder, 100);
+  assert.equal(result.reason, 'arrived-within-one-tile');
+  assert.equal(result.index, 1);
+  assert.deepEqual(result.emitted, []);
+  assert.deepEqual(engine.step(adjacent, recorder, 200).emitted, [['walk', DIRECTIONS.east]]);
+});
+
+test('one-tile tolerance does not advance special waypoints or apply across floors', () => {
+  for (const [action, z] of [['stairs', 7], ['box', 7], ['safespot', 7], ['walk', 8]]) {
+    const engine = createWalkerEngine(config({ walker: { waypoints: [
+      { action, pos: { x: 102, y: 100, z } },
+    ] } }));
+    const recorder = createRecorder();
+    engine.step({ position: { x: 100, y: 100, z: 7 } }, recorder, 0);
+    assert.deepEqual(engine.step({ position: { x: 101, y: 100, z: 7 } }, recorder, 100).emitted,
+      [['walk', DIRECTIONS.east]]);
+  }
 });
 
 test('walker says once per visit, holds waits, and loops the route', () => {
@@ -249,6 +279,186 @@ test('automation heals before fighting and walks while luring', () => {
   clock = 3000;
   const fighting = automation.tick(snapshot({ healthPercent: 90, creatures: [creature(1, 101, 100), creature(2, 102, 100), creature(3, 103, 100)] }), recorder);
   assert.equal(fighting.status, 'combat');
+});
+
+test('automation resumes walking on the first tick after a distance lure hold', () => {
+  let clock = 0;
+  const automation = createAutomation(config({
+    target: { luring: { enabled: true, maxDistance: 3 } },
+    hoenn: { perfectLure: true, minWildsToEngage: 3 },
+    walker: { stepIntervalMs: 406, waypoints: [{ action: 'walk', pos: { x: 110, y: 100, z: 7 } }] },
+  }), { now: () => clock });
+
+  assert.equal(automation.tick(snapshot()).walk.action, 'move');
+  clock = 200;
+  const held = automation.tick(snapshot({ tick: 2, creatures: [creature(7, 104, 100)] }));
+  assert.equal(held.status, 'lure-hold');
+  assert.equal(held.lure.state, 'holding');
+  assert.deepEqual(held.walk.emitted, []);
+
+  clock = 500;
+  const resumed = automation.tick(snapshot({ tick: 3, creatures: [creature(7, 103, 100)] }));
+  assert.equal(resumed.lure.state, 'in-range');
+  assert.equal(resumed.walk.action, 'move', resumed.walk.reason);
+  assert.equal(resumed.walk.index, 0);
+  assert.deepEqual(resumed.walk.emitted, [['walk', DIRECTIONS.east]]);
+});
+
+/**
+ * ─── CONTEXTO DE LURE PARA O TARGET (auditoria G01, defeito B.4) ───
+ *
+ * `automation.cjs` passava ao Target `luring: config.target.luring.enabled === true`.
+ * Mas `lure-engine.normalizeLuring()` deriva o modo por PRECEDENCIA:
+ *   randomEnabled → 'random', frontEnabled → 'dynamic',
+ *   enabled → 'distance', senao → 'off'.
+ *
+ * Com a config real (`enabled:false`, `frontEnabled:true`) o lure roda em
+ * 'dynamic' e o Target recebia `luring:false` → `lureSkill` (buff ao lurar)
+ * nunca era emitido pelo caminho nativo.
+ *
+ * Estes testes exercitam o PONTO DE ENTRADA (`createAutomation().tick`), nao a
+ * funcao de normalizacao isolada — para provar que o contexto chega ao Target.
+ */
+const lureSkillConfig = (luringPatch, skillPatch = {}) => config({
+  target: {
+    monsters: [{ name: 'Wild', range: 20, minCount: 1, priority: 1 }],
+    combo: { enabled: false, sequenceText: '', stepDelay: 250 },
+    lureSkill: { enabled: true, move: 'm9', hpPercent: 90, ...skillPatch },
+    luring: { maxDistance: 8, ...luringPatch },
+  },
+});
+
+/* Alvo proximo e vida cheia: nada bloqueia a emissao do lureSkill. */
+const lureSnapshot = (patch = {}) => snapshot({ healthPercent: 100, creatures: [creature(7, 101, 100)], ...patch });
+
+/* O buff sai como `talk <move>`; `attack` tambem sai, entao procuramos o talk. */
+const lureSkillTalks = recorder => recorder.events.filter(e => e.name === 'talk' && e.parameter === 'm9');
+
+test('lure context: all options off sends no lureSkill', () => {
+  let clock = 0;
+  const automation = createAutomation(lureSkillConfig({ enabled: false, frontEnabled: false, randomEnabled: false }),
+    { now: () => clock });
+  const recorder = createRecorder();
+  automation.tick(lureSnapshot(), recorder);
+  assert.equal(lureSkillTalks(recorder).length, 0, 'modo off nao deve buffer');
+});
+
+test('lure context: only enabled on (distance) sends lureSkill', () => {
+  let clock = 0;
+  const automation = createAutomation(lureSkillConfig({ enabled: true, frontEnabled: false, randomEnabled: false }),
+    { now: () => clock });
+  const recorder = createRecorder();
+  automation.tick(lureSnapshot(), recorder);
+  assert.equal(lureSkillTalks(recorder).length, 1, 'distance e modo ativo');
+});
+
+test('lure context: only frontEnabled on (dynamic) sends lureSkill', () => {
+  /* ESTE E' O CASO DA CONFIG REAL: enabled=false + frontEnabled=true.
+   * Antes da correcao o Target recebia luring=false e nada saia. */
+  let clock = 0;
+  const automation = createAutomation(lureSkillConfig({ enabled: false, frontEnabled: true, randomEnabled: false }),
+    { now: () => clock });
+  const recorder = createRecorder();
+  automation.tick(lureSnapshot(), recorder);
+  assert.equal(lureSkillTalks(recorder).length, 1, 'dynamic e modo ativo');
+});
+
+test('lure context: only randomEnabled on (random) sends lureSkill', () => {
+  let clock = 0;
+  const automation = createAutomation(lureSkillConfig({ enabled: false, frontEnabled: false, randomEnabled: true }),
+    { now: () => clock });
+  const recorder = createRecorder();
+  automation.tick(lureSnapshot(), recorder);
+  assert.equal(lureSkillTalks(recorder).length, 1, 'random e modo ativo');
+});
+
+test('lure context: any active option is enough, whatever the precedence', () => {
+  /* Precedencia do lure-engine: random > dynamic > distance. O contexto so'
+   * precisa responder "existe modo ativo?". Testamos as tres combinacoes. */
+  for (const patch of [
+    { enabled: true, frontEnabled: true, randomEnabled: true },
+    { enabled: false, frontEnabled: true, randomEnabled: true },
+    { enabled: true, frontEnabled: false, randomEnabled: true },
+    { enabled: true, frontEnabled: true, randomEnabled: false },
+  ]) {
+    let clock = 0;
+    const automation = createAutomation(lureSkillConfig(patch), { now: () => clock });
+    const recorder = createRecorder();
+    automation.tick(lureSnapshot(), recorder);
+    assert.equal(lureSkillTalks(recorder).length, 1, 'combinacao ativa: ' + JSON.stringify(patch));
+  }
+});
+
+test('lure context: lureSkill respects hp threshold and cooldown', () => {
+  let clock = 0;
+  const automation = createAutomation(lureSkillConfig({ frontEnabled: true }),
+    { now: () => clock });
+
+  /* HP abaixo do limite (90) nao emite. */
+  let recorder = createRecorder();
+  automation.tick(lureSnapshot({ healthPercent: 50 }), recorder);
+  assert.equal(lureSkillTalks(recorder).length, 0, 'hp 50 < 90 nao emite');
+
+  /* HP no limite emite. */
+  recorder = createRecorder();
+  automation.tick(lureSnapshot({ healthPercent: 95, tick: 2 }), recorder);
+  assert.equal(lureSkillTalks(recorder).length, 1, 'hp 95 >= 90 emite');
+
+  /* Cooldown SKILL_RETRY_MS (300): dentro da janela nao repete. */
+  clock = 100;
+  recorder = createRecorder();
+  automation.tick(lureSnapshot({ healthPercent: 95, tick: 3 }), recorder);
+  assert.equal(lureSkillTalks(recorder).length, 0, 'dentro do cooldown nao repete');
+
+  /* Passado o cooldown, volta a emitir. */
+  clock = 400;
+  recorder = createRecorder();
+  automation.tick(lureSnapshot({ healthPercent: 95, tick: 4 }), recorder);
+  assert.equal(lureSkillTalks(recorder).length, 1, 'apos cooldown emite de novo');
+});
+
+test('lure context: disabled lureSkill never emits even with an active lure mode', () => {
+  let clock = 0;
+  const automation = createAutomation(
+    lureSkillConfig({ frontEnabled: true }, { enabled: false }), { now: () => clock });
+  const recorder = createRecorder();
+  automation.tick(lureSnapshot(), recorder);
+  assert.equal(lureSkillTalks(recorder).length, 0, 'lureSkill.enabled=false manda mais');
+});
+
+test('walker waits for a new position sample rather than repeating a walk command', () => {
+  const engine = createWalkerEngine(config({ walker: { waypoints: [
+    { action: 'walk', pos: { x: 104, y: 100, z: 7 } },
+  ] } }));
+  const recorder = createRecorder();
+  const first = { tick: 10, position: { x: 100, y: 100, z: 7 } };
+  assert.equal(engine.step(first, recorder, 0).action, 'move');
+  for (let now = 100; now <= 700; now += 100) {
+    assert.equal(engine.step(first, recorder, now).reason, 'await-position-sample');
+  }
+  assert.equal(engine.step({ tick: 11, position: { x: 101, y: 100, z: 7 } }, recorder, 800).action, 'move');
+  assert.deepEqual(recorder.events.map(event => event.parameter), [DIRECTIONS.east, DIRECTIONS.east]);
+  assert.equal(engine.state.index, 0);
+});
+
+test('automation resumes the same waypoint once the last enemy disappears after a combo', () => {
+  let clock = 0;
+  const automation = createAutomation(config({
+    target: { combo: { enabled: true, sequenceText: 'm1' } },
+    walker: { waypoints: [{ action: 'walk', pos: { x: 110, y: 100, z: 7 } }] },
+  }), { now: () => clock });
+  assert.equal(automation.tick(snapshot()).walk.action, 'move');
+  clock = 1000;
+  const fighting = automation.tick(snapshot({ tick: 2, position: { x: 101, y: 100, z: 7 },
+    creatures: [creature(1, 102, 100)] }));
+  assert.equal(fighting.status, 'combat');
+  assert.ok(fighting.emitted.some(([name, parameter]) => name === 'talk' && parameter === 'm1'));
+  assert.equal(fighting.walk.action, 'skipped');
+  clock = 2000;
+  const resumed = automation.tick(snapshot({ tick: 3, position: { x: 101, y: 100, z: 7 } }));
+  assert.equal(resumed.status, 'walking');
+  assert.equal(resumed.walk.action, 'move');
+  assert.equal(resumed.walk.index, 0);
 });
 
 test('every emitted command is encodable by the reconstructed protocol', () => {
@@ -475,4 +685,82 @@ test('healer safety blocks healMove while pokemon is switching', () => {
   const third = engine.step({ ...telemetry, pokemonName: 'Blastoise' }, recorder3, 200);
   assert.equal(third.action, 'heal');
   assert.deepEqual(recorder3.events.map(e => [e.name, e.parameter]), [['talk', 'm1']]);
+});
+
+test('combo perfect lure holds combo when monster is outside 3x3 of own pokemon', () => {
+  const engine = createTargetEngine(config({ target: { combo: { enabled: true, sequenceText: 'm1', perfectingLureEnabled: true, perfectingLureRange: 1, perfectingLureHpPercent: 30 } } }));
+  const recorder = createRecorder();
+  const pet = { id: 99, pos: { x: 100, y: 100, z: 7 }, healthPercent: 100 };
+  const monsterFar = { id: 7, name: 'Magnemite', pos: { x: 105, y: 100, z: 7 }, canAttack: true, creatureType: 1, healthPercent: 100 };
+  const telemetry = { position: { x: 100, y: 100, z: 7 }, ownPokemon: pet, activeSlot: 1, roster, pokemonName: 'Diglett', healthPercent: 100, creatures: [monsterFar] };
+
+  // Waiting for the box must not attack: attacking here would kill the clump.
+  const res1 = engine.step(telemetry, recorder, 0);
+  assert.equal(res1.reason, 'waiting-perfect-lure');
+  assert.deepEqual(recorder.events, []);
+
+  // Second step still outside 3x3
+  const res2 = engine.step(telemetry, recorder, 100);
+  assert.equal(res2.reason, 'waiting-perfect-lure');
+  assert.deepEqual(recorder.events, []);
+
+  // When monster enters 3x3 (e.g. at 101, 100)
+  const monsterNear = { ...monsterFar, pos: { x: 101, y: 100, z: 7 } };
+  const res3 = engine.step({ ...telemetry, creatures: [monsterNear] }, recorder, 200);
+  assert.equal(res3.action, 'combo');
+  assert.deepEqual(recorder.events.map(e => e.name), ['attack', 'talk']);
+  assert.equal(recorder.events.at(-1).parameter, 'm1');
+});
+
+test('minCount counts per rule range around the Pokemon, not the widest range', () => {
+  const engine = createTargetEngine(config({ target: { monsters: [
+    { name: 'Boss*', range: 2, priority: 1, minCount: 2 },
+    { name: '*', range: 20, priority: 2, minCount: 9 },
+  ] } }));
+  const recorder = createRecorder();
+  const pet = { id: 99, pos: { x: 100, y: 100, z: 7 }, healthPercent: 100 };
+  const boss = (id, x) => creature(id, x, 100, { name: 'Boss1' });
+  const wild = (id, x) => creature(id, x, 100, { name: 'Rattata' });
+  const telemetry = { position: { x: 100, y: 100, z: 7 }, ownPokemon: pet, activeSlot: 1, roster,
+    pokemonName: 'Charizard', healthPercent: 100,
+    creatures: [boss(1, 103), boss(2, 103), ...Array.from({ length: 8 }, (_, i) => wild(10 + i, 105))] };
+
+  // Bosses are 3 tiles from the pet (outside their range 2); the 8 wilds are
+  // inside range 20 but below the 9 required. Counting with max(range) from
+  // the widest rule would have engaged the two bosses.
+  const result = engine.step(telemetry, recorder, 0);
+  assert.equal(result.action, 'luring');
+  assert.deepEqual(recorder.events, []);
+});
+
+test('healthy Pokemon still opens the perfect lure gate under hoenn.perfectLureMinHp', () => {
+  const engine = createTargetEngine(config({
+    target: { combo: { enabled: true, sequenceText: 'm1', stepDelay: 250,
+      perfectingLureEnabled: true, perfectingLureRange: 1, perfectingLureHpPercent: 10 } },
+    hoenn: { perfectLure: true, minWildsToEngage: 1, perfectLureMinHp: 60 },
+  }));
+  const recorder = createRecorder();
+  const pet = { id: 99, pos: { x: 100, y: 100, z: 7 }, healthPercent: 50 };
+  const telemetry = { position: { x: 100, y: 100, z: 7 }, ownPokemon: pet, activeSlot: 1, roster,
+    pokemonName: 'Charizard', healthPercent: 100, creatures: [creature(7, 105, 100)] };
+  const result = engine.step(telemetry, recorder, 0);
+  assert.equal(result.action, 'combo');
+  assert.deepEqual(recorder.events.map(e => e.name), ['attack', 'talk']);
+});
+
+test('perfect lure timeout waits in box waypoints and opens outside them', () => {
+  const engine = createTargetEngine(config({
+    target: { combo: { enabled: true, sequenceText: 'm1', stepDelay: 250,
+      perfectingLureEnabled: true, perfectingLureRange: 1 } },
+    hoenn: { perfectLure: true, minWildsToEngage: 1, perfectLureMinHp: 0, perfectLureTimeoutMs: 1000 },
+  }));
+  const recorder = createRecorder();
+  const pet = { id: 99, pos: { x: 100, y: 100, z: 7 }, healthPercent: 100 };
+  const telemetry = { position: { x: 100, y: 100, z: 7 }, ownPokemon: pet, activeSlot: 1, roster,
+    pokemonName: 'Charizard', healthPercent: 100, creatures: [creature(7, 105, 100)] };
+  assert.equal(engine.step(telemetry, recorder, 1000).reason, 'waiting-perfect-lure');
+  assert.equal(engine.step(telemetry, recorder, 2500, { boxMode: true }).reason, 'waiting-perfect-lure');
+  assert.deepEqual(recorder.events, []);
+  assert.equal(engine.step(telemetry, recorder, 2500, { boxMode: false }).action, 'combo');
+  assert.deepEqual(recorder.events.map(e => e.name), ['attack', 'talk']);
 });

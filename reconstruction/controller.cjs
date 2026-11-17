@@ -1,4 +1,4 @@
-﻿const { EventEmitter } = require('node:events');
+const { EventEmitter } = require('node:events');
 
 const { isDeepStrictEqual } = require('node:util');
 
@@ -20,7 +20,7 @@ class Controller extends EventEmitter {
     this.activeModules = [];
     this.isPaused = true;
     this.handlers = new Map([
-      ['bootstrap', () => ({ ...this.snapshot(), version: '3.1.9 / reconstrucao local', settings: this.settings() })],
+      ['bootstrap', () => ({ ...this.snapshot(), version: '3.3.1 / reconstrucao local', settings: this.settings() })],
       ['view', () => ({ accepted: true })],
       ['pause', async () => {
         if (this.ports.runtime) {
@@ -70,6 +70,46 @@ class Controller extends EventEmitter {
         return imported;
       }],
       ['export', (config, context) => { this.requireContext(context); return this.ports.exportProfile?.(config); }],
+      ['exportSharedProfile', async (config, options, profileName, context) => {
+        this.requireContext(context);
+        const current = this.store.snapshot();
+        if (profileName && profileName !== current.activeProfile) {
+          throw Error('O perfil ativo mudou. Abra a exportação novamente.');
+        }
+        return this.ports.exportSharedProfile?.(config, options, profileName);
+      }],
+      ['inspectSharedProfile', (text, profileName, context) => {
+        this.requireContext(context);
+        const current = this.store.snapshot();
+        if (profileName && profileName !== current.activeProfile) {
+          throw Error('O perfil ativo mudou. Abra a importação novamente.');
+        }
+        return this.ports.inspectSharedProfile?.(text, profileName);
+      }],
+      ['importSharedProfile', async (text, profileName, context) => {
+        this.requireContext(context);
+        const current = this.store.snapshot();
+        if (profileName && profileName !== current.activeProfile) {
+          throw Error('O perfil ativo mudou. Abra a importação novamente.');
+        }
+        const imported = await this.ports.importSharedProfile?.(text, profileName);
+        if (imported?.config) {
+          await this.store.save(current.activeProfile, imported.config);
+        }
+        return imported?.config || imported;
+      }],
+      ['clearAlertHistory', (context) => {
+        this.requireContext(context);
+        return this.ports.clearAlertHistory?.();
+      }],
+      ['copyAlertHistory', (context) => {
+        this.requireContext(context);
+        return this.ports.copyAlertHistory?.();
+      }],
+      ['guildDailyReset', (context) => {
+        this.requireContext(context);
+        return this.ports.guildDailyReset?.();
+      }],
       ['quit', () => this.ports.quit?.()],
       ['runtime', async (module, enabled, pid, config, context) => {
         this.requireContext(context);

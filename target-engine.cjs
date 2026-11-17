@@ -1,5 +1,7 @@
 'use strict';
 
+const DEFAULT_GLOBAL_COOLDOWN_MS = 250;
+
 function validPosition(position) {
   return position != null && Number.isFinite(position.x)
     && Number.isFinite(position.y) && Number.isFinite(position.z);
@@ -32,7 +34,8 @@ function targetRules(config) {
     const name = normalizeName(typeof entry === 'string' ? entry : entry?.name);
     const priority = typeof entry === 'object' && Number.isFinite(entry?.priority) ? entry.priority : index;
     const range = typeof entry === 'object' ? nonNegative(entry?.range, Infinity) : Infinity;
-    if (name && range !== null) rules.push({ name, priority, range });
+    const minCount = typeof entry === 'object' ? nonNegative(entry?.minCount, 1) : 1;
+    if (name && range !== null) rules.push({ name, priority, range, minCount: minCount ?? 1 });
   }
   return rules;
 }
@@ -145,7 +148,7 @@ class TargetEngine {
       return null;
     }
     const skills = config.skills;
-    const gcdMs = nonNegative(config.globalCooldownMs, 250);
+    const gcdMs = nonNegative(config.globalCooldownMs, DEFAULT_GLOBAL_COOLDOWN_MS);
     if (!Array.isArray(skills) || !skills.length || gcdMs === null) return null;
     let now;
     try {
@@ -208,3 +211,4 @@ class TargetEngine {
 
 module.exports = TargetEngine;
 module.exports.TargetEngine = TargetEngine;
+module.exports.DEFAULT_GLOBAL_COOLDOWN_MS = DEFAULT_GLOBAL_COOLDOWN_MS;

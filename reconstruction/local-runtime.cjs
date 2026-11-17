@@ -13,6 +13,24 @@
 
 const { EventEmitter } = require('node:events');
 const { encodeCommand, COMMANDS } = require('./protocol.cjs');
+const { CONTRACT, VERSION, parseDeclaration } = require('./capabilities.cjs');
+
+/* Comandos que esta simulacao ACEITA. O resto ('follow', 'chase', ...) devolvia
+ * `true` sem modelar nada — foi o que mascarou `chase` ate' a DLL real devolver
+ * status 4 e derrubar a sessao. */
+const SIMULATED_COMMANDS = Object.freeze([
+  'walk', 'attack', 'stop', 'switchPokemon', 'recallPokemon', 'focus',
+  'talk', 'combo', 'hotkey',
+]);
+/* Subconjunto que muda estado de verdade; os demais so' registram lastCommand. */
+const MODELLED_COMMANDS = Object.freeze([
+  'walk', 'attack', 'stop', 'switchPokemon', 'recallPokemon', 'focus',
+]);
+
+function declaration() {
+  return { contract: CONTRACT, version: VERSION, server: 'local-runtime',
+    commands: [...SIMULATED_COMMANDS], effects: [...MODELLED_COMMANDS] };
+}
 
 const STEP = 1;
 const START = Object.freeze({ x: 3320, y: 2264, z: 9 });
@@ -148,7 +166,10 @@ function createSimulation(options = {}) {
     if (signal?.aborted) throw Error('Conexao cancelada.');
     const activePid = Number.isInteger(requestedPid) && requestedPid > 0 ? requestedPid : pid;
     const adapter = new EventEmitter();
-    adapter.supportedCommands = Object.keys(COMMANDS);
+    /* Declaracao explicita: so' os comandos que esta simulacao aceita.
+     * `Object.keys(COMMANDS)` anunciava o encoder, nao a simulacao. */
+    adapter.supportedCommands = [...SIMULATED_COMMANDS];
+    adapter.capabilities = () => parseDeclaration(declaration());
     let closed = false;
     adapter.getSnapshot = () => (closed ? null : { ...snapshot(), pid: activePid });
     adapter.command = async (name, parameter, context = {}) => {

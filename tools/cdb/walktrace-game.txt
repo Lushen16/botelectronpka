@@ -1,0 +1,45 @@
+// Script CDB — coleta única de Game::walk (build 48C41BD4, RVA 0x780c90)
+//
+// MECANISMO: bp (software breakpoint).
+//   bp grava 0xCC no endereço observado e restaura os bytes originais em bc.
+//   Isso MODIFICA temporariamente o código do alvo. Não é leitura pura.
+//
+//   Alternativa `ba e1` (hardware, DR0) descartada: debug registers são POR
+//   THREAD; armar numa thread deixaria as outras cegas, e a pergunta é
+//   justamente "qual thread". Troca declarada, não silenciosa.
+//
+// LIMITAÇÃO ACEITA: 0xCC visível enquanto armado. Não contornamos anti-debug.
+//
+// DISTINÇÃO HIT vs INTERRUPÇÃO (verificado no auxiliar):
+//   hit          -> RIP == módulo+RVA, ex.: walktrace_target+0x1000
+//   interrupção  -> RIP == ntdll!DbgBreakPoint, ex.: 0x7ff9`da183f40
+//   Ambos chegam como "Break instruction exception - code 80000003", então o
+//   código NÃO distingue. A distinção é por RIP (comando `r rip`).
+
+.printf "=== WALKTRACE BEGIN ===\n"
+.time
+
+// Captura completa no momento do breakpoint.
+// `r rip` dá RIP; `kb` dá TID e pilha. `$tid` NÃO resolve dentro do .printf
+// neste cdb (verificado) — o TID vem do cabeçalho do prompt e do kb.
+bp pokealliance_dx+780c90 "r rip; r rdx; r r8; r rcx; kb"
+
+// Um hit. O `g` retorna quando o bp dispara OU quando o operador interrompe
+// (Ctrl+Break no console do cdb) OU quando o alvo encerra.
+g
+
+// -------------------------------------------------------- classificar parada
+// `r rip` aqui diz onde paramos: módulo+RVA = hit; ntdll!DbgBreakPoint =
+// interrupção manual; outro lugar = exceção inesperada.
+.echo "=== STOP CLASSIFY ==="
+r rip
+.lastevent
+
+// ---------------------------------------------------------------- limpeza
+// `bc *` restaura os bytes originais (0xCC -> byte original). Idempotente.
+.echo "=== CLEANUP ==="
+bc *
+.echo "=== DETACH ==="
+
+// `.detach` como ÚLTIMO comando. Nunca dentro de .if (crasha: 0xC0000005).
+.detach

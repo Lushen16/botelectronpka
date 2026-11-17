@@ -1,0 +1,14 @@
+.printf "=== WALKTRACE ABC BEGIN ===\n"
+.time
+bp /1 pokealliance_dx+7463d0 ".printf \"[A] tid=%x rip=%p\n\", $tid, @rip; kb; g"
+bp /1 pokealliance_dx+74742a ".printf \"[B] tid=%x rip=%p rdx=%d r8=%d\n\", $tid, @rip, @rdx, @r8; g"
+bp /1 pokealliance_dx+780c90 ".printf \"[C] tid=%x rip=%p rdx=%d r8=%d\n\", $tid, @rip, @rdx, @r8; kb; g"
+bl
+g
+.echo "=== STOP CLASSIFY ==="
+r rip
+.lastevent
+.echo "=== CLEANUP ==="
+bc *
+.echo "=== DETACH ==="
+.detach

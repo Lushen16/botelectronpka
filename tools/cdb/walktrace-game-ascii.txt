@@ -1,0 +1,45 @@
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+
+.printf "=== WALKTRACE BEGIN ===\n"
+.time
+
+//
+//
+//
+bp pokealliance_dx+780c90 "r rip; r rdx; r r8; r rcx; kb"
+
+//
+//
+g
+
+//
+//
+//
+.echo "=== STOP CLASSIFY ==="
+r rip
+.lastevent
+
+//
+//
+.echo "=== CLEANUP ==="
+bc *
+.echo "=== DETACH ==="
+
+//
+.detach

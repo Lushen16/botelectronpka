@@ -93,10 +93,10 @@ test('Walker-only after-combat capture requires independent fresh combat percept
   assert.equal(value.events.filter(event => event.request?.kind === 'useWith').length, 0);
 });
 
-test('Adding Walker preserves the shared combat dispatch cooldown', async () => {
+test('Adding Walker preserves combat GCD while its movement clock is independent', async () => {
   const value = fixture(); await value.start('target');
   await value.runtime.tick(); await value.start('walker');
-  assert.equal(await value.runtime.tick(), null);
+  assert.equal((await value.runtime.tick()).status, 'walking');
   assert.equal(value.events.filter(event => event.request).length, 1);
   value.advance(250); await value.runtime.tick();
   assert.equal(value.events.filter(event => event.request).length, 2);
@@ -107,7 +107,10 @@ function fixture() {
   const events = [];
   const config = { target: { monsters: [{ name: 'Rat*', priority: 1, range: 7 }],
     combo: { enabled: true, useNativeSequence: false, sequenceText: 'm1 m2', stepDelay: 250 } },
-  walker: { loop: false, waypoints: [{ action: 'walk', pos: { x: 103, y: 100, z: 7 } }] } };
+  /* `stepIntervalMs: 0`: o fixture avanca o relogio em 300 ms, abaixo do piso
+   * de 406 ms medido no cliente. O piso tem teste proprio em
+   * `tests/engines.test.cjs`. */
+  walker: { loop: false, stepIntervalMs: 0, waypoints: [{ action: 'walk', pos: { x: 103, y: 100, z: 7 } }] } };
   const telemetry = { nativeVerified: false, playerName: 'Ash', position: { x: 100, y: 100, z: 7 },
     creaturesStale: false, creaturesGeneratedAt: new Date(clock).toISOString(),
     creatureIdentityProfile: { executableSha256: '473df25c1edd23e7464ad3ba9b923a603051a8b4ae8004a95c06402f678294e6', typeOffset: '0x186' },
@@ -134,6 +137,52 @@ function fixture() {
     start: module => runtime.setModules(module, true, 42, config),
   };
 }
+
+test('temporary player snapshot skew blocks input without permanently pausing Target and Walker', async () => {
+  const value = fixture(); await value.start('walker'); await value.start('target');
+  await value.runtime.tick(); value.advance();
+  const count = value.events.length;
+  const queue = structuredClone(value.runtime.queue);
+  const waypoint = value.runtime.engine.state.index;
+  value.telemetry.position.x++;
+  assert.equal((await value.runtime.tick()).status, 'synchronizing');
+  assert.equal(value.runtime.paused, false);
+  assert.equal(value.events.length, count);
+  assert.deepEqual(value.runtime.queue, queue);
+  assert.equal(value.runtime.engine.state.index, waypoint);
+  value.advance(); value.telemetry.creaturePlayer.pos.x++;
+  assert.equal((await value.runtime.tick()).action, 'talk');
+  assert.equal(value.events.findLast(event => event.request)?.request.key, 'F1');
+  assert.equal(value.runtime.paused, false);
+});
+
+test('persistent player snapshot skew still pauses without dispatching', async () => {
+  const value = fixture(); await value.start('target');
+  const count = value.events.length;
+  value.telemetry.position.x++;
+  assert.equal((await value.runtime.tick()).status, 'synchronizing');
+  value.advance(501);
+  assert.equal((await value.runtime.tick()).status, 'error');
+  assert.equal(value.runtime.paused, true);
+  assert.equal(value.events.length, count);
+});
+
+test('snapshot skew immediately before dispatch preserves the unsent attack for reprojection', async () => {
+  const value = fixture(); await value.start('target');
+  const inspect = value.runtime.combat.inspect.bind(value.runtime.combat);
+  value.runtime.combat.inspect = (...args) => {
+    const candidates = inspect(...args);
+    value.telemetry.position.x = 101;
+    return candidates;
+  };
+  const count = value.events.length;
+  assert.equal((await value.runtime.tick()).status, 'synchronizing');
+  assert.equal(value.events.length, count);
+  assert.equal(value.runtime.queue[0].name, 'attack');
+  value.telemetry.creaturePlayer.pos.x = 101; value.advance();
+  assert.equal((await value.runtime.tick()).action, 'attack');
+  assert.equal(value.events.at(-1).request.x, 400);
+});
 
 test('RPM target uses real entity schema, queues attack then configured keys with GCD', async () => {
   const value = fixture(); await value.start('target');
@@ -185,10 +234,10 @@ test('Target activation and deactivation preserve the running Walker and its ind
   await value.runtime.tick(); assert.equal(value.events.at(-1).input[1], 1);
 });
 
-test('combat holds movement, dead targets discard queued skills and release Walker', async () => {
+test('combat permits movement and dead targets discard queued skills without stopping Walker', async () => {
   const value = fixture(); await value.start('walker'); await value.start('target');
   await value.runtime.tick();
-  assert.equal(value.events.filter(event => event.input?.[1] !== null && event.input).length, 0);
+  assert.equal(value.events.filter(event => event.input?.[1] !== null && event.input).length, 1);
   value.telemetry.creatures[0].healthPercent = 0;
   value.advance(); await value.runtime.tick();
   assert.equal(value.events.at(-1).input[1], 1);
@@ -298,14 +347,45 @@ test('dynamic type protects own Pokemon while allowing a wild namesake', async (
   assert.deepEqual(value.runtime.sessions[0].telemetry.creatures.map(creature => creature.id), [7]);
 });
 
-test('missing, stale or ambiguous ownership prevents combat before any command', async () => {
+test('missing or stale ownership profile prevents combat before any command', async () => {
   for (const change of [value => { delete value.telemetry.creatureIdentityProfile; },
-    value => value.advance(501, false), value => { value.telemetry.creatures.pop(); },
-    value => value.telemetry.creatures.push({ ...value.telemetry.creatures[1], id: 1004 })]) {
+    value => value.advance(501, false)]) {
     const value = fixture(); change(value);
     await assert.rejects(value.start('target'));
     assert.equal(value.events.some(event => event.request), false);
   }
+});
+
+test('missing or ambiguous own Pokemon permits verified hostile Target and Walker', async () => {
+  for (const ambiguous of [false, true]) {
+    const value = fixture();
+    const own = structuredClone(value.telemetry.creatures[1]);
+    if (ambiguous) value.telemetry.creatures.push({ ...own, id: 1004 });
+    else value.telemetry.creatures.pop();
+    assert.equal(value.runtime.sessions[0].capabilities.targetKeyboard, true);
+    assert.equal(value.runtime.sessions[0].telemetry.ownPokemon, null);
+    await value.start('target'); await value.start('walker');
+    await value.runtime.tick();
+    assert.equal(value.runtime.paused, false);
+    const requests = value.events.filter(event => event.request);
+    assert.equal(requests.length, 1);
+    assert.equal(requests[0].request.targetGuard.allowMissingOwn, true);
+    assert.equal(requests[0].request.targetGuard.target.creatureType, 1);
+    assert.ok(value.events.some(event => event.input?.[1] === 1));
+    value.telemetry.creatures = [value.telemetry.creatures[0], own];
+    value.advance(); await value.runtime.tick();
+    assert.equal(value.events.filter(event => event.request).length, 2);
+    assert.equal(value.runtime.paused, false);
+  }
+});
+
+test('ambiguous own Pokemon still excludes every known pet tile from hostile targets', async () => {
+  const value = fixture();
+  const own = structuredClone(value.telemetry.creatures[1]);
+  value.telemetry.creatures.push({ ...own, id: 1004, pos: { ...value.telemetry.creatures[0].pos } });
+  await value.start('target'); await value.runtime.tick();
+  assert.equal(value.runtime.paused, false);
+  assert.equal(value.events.filter(event => event.request).length, 0);
 });
 
 test('ownership change cancels queued skills and never attacks the new own entity', async () => {
@@ -315,7 +395,7 @@ test('ownership change cancels queued skills and never attacks the new own entit
   await value.runtime.tick();
   assert.equal(value.events.filter(event => event.request).length, sent);
   assert.deepEqual(value.runtime.queue, []);
-  assert.equal(value.runtime.paused, true);
+  assert.equal(value.runtime.paused, false);
 });
 
 test('every attack and skill carries fresh player, own and target identity', async () => {
@@ -348,18 +428,16 @@ test('moving target rejection waits for a new snapshot and reprojects without pa
   assert.equal(value.events.some(event => event.request?.key), false);
 });
 
-test('movement rejection during a skill reselects before resuming the pending skill and GCD', async () => {
+test('movement rejection during a skill preserves the pending hotkey without inserting a click', async () => {
   const value = fixture(); await value.start('target'); await value.runtime.tick(); value.advance();
   const acceptedInput = value.runtime.combatInput;
   value.runtime.combatInput = async () => { throw Object.assign(Error('moved'), { code: 'COMBAT_TARGET_MOVED' }); };
   assert.equal((await value.runtime.tick()).status, 'retrying');
   value.runtime.combatInput = acceptedInput;
   value.telemetry.creatures[0].pos = { x: 102, y: 100, z: 7 }; value.advance();
-  assert.equal((await value.runtime.tick()).action, 'attack');
-  assert.equal(await value.runtime.tick(), null);
-  value.advance();
   assert.equal((await value.runtime.tick()).action, 'talk');
   assert.equal(value.events.at(-1).request.key, 'F1');
+  assert.equal(value.events.filter(event => event.request?.kind === 'attack').length, 1);
 });
 
 test('target loss after a movement rejection cancels pending skills without stale clicks', async () => {
@@ -422,4 +500,470 @@ test('Walker steps continuously in idle combat without waiting for new creature 
   const tick2 = await value.runtime.tick();
   assert.equal(tick2?.status, 'walking');
   assert.equal(value.events.at(-1).input[1], 1);
+});
+
+test('Walker has an independent clock while combat is in flight', async () => {
+  const value = fixture(); await value.start('walker'); await value.start('target');
+  let complete;
+  value.runtime.combatInput = () => new Promise(resolve => { complete = resolve; });
+  const pending = value.runtime.tick();
+  await new Promise(resolve => setImmediate(resolve));
+  try {
+    assert.equal(value.events.filter(event => event.input?.[1] === 1).length, 1);
+    value.advance(); value.telemetry.position.x++; value.telemetry.creaturePlayer.pos.x++;
+    await value.runtime.tick();
+    assert.equal(value.events.filter(event => event.input?.[1] === 1).length, 2);
+  } finally { complete({ success: true }); await pending; }
+  assert.equal(value.runtime.paused, false);
+});
+
+test('fresh but unchanged creature snapshot does not consume or skip rotation steps', async () => {
+  const value = fixture(); value.runtime.maxAgeMs = 1000;
+  await value.start('target'); await value.runtime.tick();
+  value.advance(250, false); await value.runtime.tick();
+  value.advance(250, false); await value.runtime.tick();
+  assert.deepEqual(value.events.filter(event => event.request?.key).map(event => event.request.key), ['F1', 'F2']);
+  assert.equal(value.runtime.combat.state.comboIndex, 2);
+});
+
+test('continuous hotkey rotation sends each skill every 300ms without redundant attack clicks', async () => {
+  const value = fixture(); value.config.target.skills = [{ key: 'F1' }, { key: 'F2' }, { key: 'F3' }];
+  await value.start('target'); await value.runtime.tick();
+  for (let tick = 0; tick < 6; tick++) { value.advance(); await value.runtime.tick(); }
+  assert.deepEqual(value.events.filter(event => event.request?.key).map(event => event.request.key),
+    ['f1', 'f2', 'f3', 'f1', 'f2', 'f3']);
+  assert.equal(value.events.filter(event => event.request?.kind === 'attack').length, 1);
+});
+
+test('manual combo respects configured GCD measured from actual dispatch', async () => {
+  const value = fixture(); value.config.target.globalCooldownMs = 350;
+  await value.start('target'); await value.runtime.tick();
+  value.advance(349); assert.equal(await value.runtime.tick(), null);
+  value.advance(1); assert.equal((await value.runtime.tick()).action, 'talk');
+  value.advance(349); assert.equal(await value.runtime.tick(), null);
+  value.advance(1); await value.runtime.tick();
+  assert.equal(value.events.at(-1).request.key, 'F2');
+});
+
+test('urgent healing preempts a queued skill and resumes that exact rotation step', async () => {
+  const value = fixture();
+  value.config.target.healSkill = { enabled: true, hpPercent: 50, move: 'm3' };
+  value.transport.bindings.m3 = 'F3'; value.telemetry.healthPercent = 100;
+  await value.start('target'); await value.runtime.tick();
+  value.telemetry.healthPercent = 30; value.advance(250);
+  assert.equal((await value.runtime.tick()).status, 'heal');
+  assert.equal(value.events.at(-1).request.key, 'F3');
+  assert.equal(value.runtime.queue[0].parameter, 'm1');
+  value.telemetry.healthPercent = 90; value.advance(250); await value.runtime.tick();
+  assert.equal(value.events.at(-1).request.key, 'F1');
+  value.advance(250); await value.runtime.tick();
+  assert.equal(value.events.at(-1).request.key, 'F2');
+});
+
+test('heal priority works with skills arrays and without a hostile target', async () => {
+  const value = fixture();
+  value.config.target.skills = [{ key: 'F1' }];
+  value.config.target.healSkill = { enabled: true, hpPercent: 50, move: 'm3' };
+  value.transport.bindings.m3 = 'F3'; value.telemetry.healthPercent = 30;
+  value.telemetry.creatures = [value.telemetry.creatures[1]];
+  await value.start('target');
+  assert.equal((await value.runtime.tick()).status, 'heal');
+  assert.equal(value.events.at(-1).request.key, 'F3');
+  assert.equal(value.runtime.combat.state.comboIndex, 0);
+});
+
+test('Healer module has priority over an existing combat queue and preserves Walker', async () => {
+  const value = fixture(); value.telemetry.healthPercent = 100;
+  await value.start('walker'); await value.start('target'); await value.runtime.tick();
+  const queue = structuredClone(value.runtime.queue);
+  const walker = value.runtime.engine;
+  value.config.hoenn = { potionHpPercent: 50, potionHotkey: 'F12', potionCooldownMs: 1500 };
+  await value.start('healer');
+  value.telemetry.healthPercent = 20; value.advance();
+  assert.equal((await value.runtime.tick()).status, 'heal');
+  assert.equal(value.events.filter(event => event.request).at(-1).request.key, 'F12');
+  assert.deepEqual(value.runtime.queue, queue);
+  value.telemetry.healthPercent = 80; value.advance(); await value.runtime.tick();
+  assert.equal(value.events.at(-1).request.key, 'F1');
+  assert.equal(value.runtime.engine, walker);
+  await value.runtime.setModules('healer', false);
+  assert.deepEqual(value.runtime.modules, ['walker', 'target']);
+  assert.equal(value.runtime.paused, false);
+});
+
+test('Healer-only mode requires actual HP, survives pause, and stays active when Walker stops', async () => {
+  const value = fixture(); value.config.hoenn = { potionHpPercent: 50, potionHotkey: 'F12' };
+  await assert.rejects(value.start('healer'), /telemetria real de HP/);
+  value.telemetry.healthPercent = 20;
+  await value.start('healer');
+  assert.equal((await value.runtime.tick()).status, 'heal');
+  await value.runtime.togglePause(); await value.runtime.togglePause();
+  await value.start('walker'); await value.runtime.setModules('walker', false);
+  assert.deepEqual(value.runtime.modules, ['healer']);
+  value.advance(1500); assert.equal((await value.runtime.tick()).status, 'heal');
+  await value.runtime.setModules('all', false);
+  assert.equal(value.runtime.healer, null);
+  assert.equal(await value.runtime.tick(), null);
+});
+
+test('Healer cannot turn missing HP into a potion or cast a different Pokemon move', async () => {
+  const value = fixture(); value.telemetry.healthPercent = 20;
+  value.config.hoenn = { potionHpPercent: 50, potionHotkey: 'F12' };
+  value.config.healer = { healHpPercent: 50, healMoveSlot: 1, healPokemonName: 'Other' };
+  value.telemetry.roster = [{ name: 'Other', slot: 1, uuid: 'other' }];
+  value.telemetry.pokemonName = 'Eevee'; value.telemetry.activeSlot = 2;
+  await value.start('healer');
+  delete value.telemetry.healthPercent;
+  await value.runtime.tick();
+  assert.equal(value.events.some(event => event.request), false);
+  value.config.hoenn = {}; value.runtime.updateConfig(value.config);
+  value.telemetry.healthPercent = 20; value.advance(); await value.runtime.tick();
+  assert.equal(value.events.some(event => event.request), false);
+  assert.ok(value.runtime.state.healer.blocked.includes('keyboard-heal-requires-active-pokemon'));
+});
+
+test('pause drains both lanes and never dispatches the queued skill after cancellation', async () => {
+  const value = fixture(); await value.start('walker'); await value.start('target');
+  let releaseWalk; let releaseCombat;
+  value.runtime.input = () => new Promise(resolve => { releaseWalk = resolve; });
+  value.runtime.combatInput = () => new Promise(resolve => { releaseCombat = resolve; });
+  const tick = value.runtime.tick(); await new Promise(resolve => setImmediate(resolve));
+  let paused = false;
+  const stopping = value.runtime.pause().then(() => { paused = true; });
+  releaseCombat({ success: true }); await new Promise(resolve => setImmediate(resolve));
+  assert.equal(paused, false);
+  assert.equal(await value.runtime.tick(), null);
+  releaseWalk(); await tick; await stopping;
+  assert.equal(value.runtime.paused, true);
+});
+
+test('finishing Walker route preserves ongoing combat and its timer state', async () => {
+  const value = fixture(); value.config.walker.waypoints[0].pos.x = 100;
+  await value.start('walker'); await value.start('target'); await value.runtime.tick();
+  value.advance(); await value.runtime.tick();
+  assert.deepEqual(value.runtime.modules, ['target']);
+  assert.equal(value.runtime.paused, false);
+  assert.equal(value.events.at(-1).request.key, 'F1');
+});
+
+test('Healer does not starve after-combat capture when no healing action is needed', async () => {
+  const value = captureFixture(); value.telemetry.healthPercent = 100;
+  value.config.hoenn = { potionHpPercent: 50, potionHotkey: 'F12' };
+  value.telemetry.creatures = [value.telemetry.creatures[1]];
+  await value.start('walker'); await value.start('target'); await value.start('healer');
+  assert.equal((await value.runtime.tick()).status, 'capture');
+  assert.equal(value.events.filter(event => event.request).at(-1).request.kind, 'useWith');
+});
+
+test('reprojection has a 300ms retry floor even when scans update faster', async () => {
+  const value = fixture(); await value.start('target');
+  let attempts = 0;
+  value.runtime.combatInput = async () => { attempts++; throw Object.assign(Error('moved'), { code: 'COMBAT_TARGET_MOVED' }); };
+  await value.runtime.tick();
+  value.advance(100); await value.runtime.tick();
+  value.advance(199); await value.runtime.tick();
+  assert.equal(attempts, 1);
+  value.advance(1); await value.runtime.tick();
+  assert.equal(attempts, 2);
+});
+
+test('reconfiguration during a dispatch cannot mark a new target engine as already attacked', async () => {
+  const value = fixture(); await value.start('target');
+  const accepted = value.runtime.combatInput;
+  let release;
+  value.runtime.combatInput = () => new Promise(resolve => { release = resolve; });
+  const tick = value.runtime.tick(); await new Promise(resolve => setImmediate(resolve));
+  value.config.target.combo.sequenceText = 'm2'; value.runtime.updateConfig(value.config);
+  release({ success: true }); await tick;
+  value.runtime.combatInput = accepted; value.advance(); await value.runtime.tick();
+  assert.equal(value.events.at(-1).request.kind, 'attack');
+  value.advance(); await value.runtime.tick();
+  assert.equal(value.events.at(-1).request.key, 'F2');
+});
+
+test('Healer retry cooldown starts at accepted dispatch, not at planning time', async () => {
+  const value = fixture(); value.telemetry.healthPercent = 20;
+  value.config.hoenn = { potionHpPercent: 50, potionHotkey: 'F12', potionCooldownMs: 1500 };
+  await value.start('healer');
+  const accepted = value.runtime.combatInput;
+  let release;
+  value.runtime.combatInput = () => new Promise(resolve => { release = resolve; });
+  const tick = value.runtime.tick();
+  value.advance(2000); release({ success: true }); await tick;
+  value.runtime.combatInput = accepted;
+  value.advance(1499); assert.equal(await value.runtime.tick(), null);
+  value.advance(1); assert.equal((await value.runtime.tick()).status, 'heal');
+});
+
+test('RPM triggers AutoRevive after combo and resumes Walker when remaining creatures <= finishRemainingCount', async () => {
+  const value = fixture();
+  value.config.target.combo.finishRemainingCount = 1;
+  value.config.target.autoRevive = { enabled: true, hotkey: 'F9', interval: 500, waitForPokemon: false };
+  await value.start('walker'); await value.start('target');
+
+  // Step 1: attack
+  assert.equal((await value.runtime.tick()).action, 'attack');
+  // Advance & Step 2: m1
+  value.advance(); assert.equal((await value.runtime.tick()).action, 'talk');
+  // Advance & Step 3: m2 (combo finishes)
+  value.advance(); assert.equal((await value.runtime.tick()).action, 'talk');
+
+  // Next tick: combo-done triggers revive waiting-interval
+  value.advance();
+  const reviveWait = await value.runtime.tick();
+  assert.equal(reviveWait.status, 'revive');
+  assert.equal(reviveWait.action, 'waiting-interval');
+
+  // Advance past interval (500ms): revive hotkey dispatched!
+  value.advance(500);
+  const reviveSent = await value.runtime.tick();
+  assert.equal(reviveSent.status, 'revive');
+  assert.equal(reviveSent.action, 'hotkey');
+  assert.equal(value.events.filter(e => e.request).at(-1).request.key, 'F9');
+
+  // Now revive finished, 1 creature remaining <= finishRemainingCount (1)
+  // Walker resumes walking immediately in the same tick!
+  value.advance();
+  const resumed = await value.runtime.tick();
+  assert.equal(resumed.status, 'walking');
+  assert.equal(resumed.action, 'move');
+});
+
+test('RPM restarts combo when remaining creatures > finishRemainingCount', async () => {
+  const value = fixture();
+  value.config.target.combo.finishRemainingCount = 0;
+  await value.start('target');
+
+  // Attack, m1, m2
+  await value.runtime.tick();
+  value.advance(); await value.runtime.tick();
+  value.advance(); await value.runtime.tick();
+
+  // Combo finished, but 1 rat is still alive (> 0 remaining)
+  value.advance();
+  const restart = await value.runtime.tick();
+  assert.equal(restart.status, 'combat');
+  assert.equal(restart.action, 'restart-combo');
+
+  // Next tick begins next combo cycle
+  value.advance();
+  const nextCombo = await value.runtime.tick();
+  assert.equal(nextCombo.action, 'talk');
+  assert.equal(value.events.at(-1).request.key, 'F1');
+});
+
+test('RPM triggers AutoRevive even when 0 creatures remain after combo and then resumes Walker', async () => {
+  const value = fixture();
+  value.config.target.combo.finishRemainingCount = 0;
+  value.config.target.autoRevive = { enabled: true, hotkey: 'F9', interval: 500, waitForPokemon: false };
+  await value.start('walker'); await value.start('target');
+
+  // Step 1: attack
+  assert.equal((await value.runtime.tick()).action, 'attack');
+  // Step 2: m1
+  value.advance(); assert.equal((await value.runtime.tick()).action, 'talk');
+  // Step 3: m2 kills the rat, now creatures is empty
+  value.advance();
+  assert.equal((await value.runtime.tick()).action, 'talk');
+  value.telemetry.creatures = value.telemetry.creatures.filter(c => c.creatureType === 3);
+
+  // Next tick: even with 0 creatures left, combo-done triggers revive waiting-interval!
+  value.advance();
+  const reviveWait = await value.runtime.tick();
+  assert.equal(reviveWait.status, 'revive');
+  assert.equal(reviveWait.action, 'waiting-interval');
+
+  // Advance past interval (500ms): revive hotkey dispatched!
+  value.advance(500);
+  const reviveSent = await value.runtime.tick();
+  assert.equal(reviveSent.status, 'revive');
+  assert.equal(reviveSent.action, 'hotkey');
+  assert.equal(value.events.filter(e => e.request).at(-1).request.key, 'F9');
+
+  // Now revive finished, 0 creatures remaining <= finishRemainingCount (0)
+  // Walker resumes walking!
+  value.advance();
+  const resumed = await value.runtime.tick();
+  assert.equal(resumed.status, 'walking');
+  assert.equal(resumed.action, 'move');
+});
+
+test('RPM continues combat against remaining creatures when remaining < minCount', async () => {
+  const value = fixture();
+  value.config.target.monsters[0].minCount = 5;
+  value.config.target.combo.finishRemainingCount = 0;
+  value.config.target.autoRevive = { enabled: true, hotkey: 'F9', interval: 500, waitForPokemon: false };
+  
+  // Set up 5 rats to satisfy initial minCount
+  const ownPokemon = value.telemetry.creatures.find(c => c.creatureType === 3);
+  value.telemetry.creatures = [
+    ownPokemon,
+    { id: 10, name: 'Rat', pos: { x: 101, y: 100, z: 7 }, canAttack: true, healthPercent: 100, creatureType: 1, ownershipVerified: true, struct_va: '0x300' },
+    { id: 11, name: 'Rat', pos: { x: 101, y: 101, z: 7 }, canAttack: true, healthPercent: 100, creatureType: 1, ownershipVerified: true, struct_va: '0x301' },
+    { id: 12, name: 'Rat', pos: { x: 99, y: 101, z: 7 }, canAttack: true, healthPercent: 100, creatureType: 1, ownershipVerified: true, struct_va: '0x302' },
+    { id: 13, name: 'Rat', pos: { x: 99, y: 100, z: 7 }, canAttack: true, healthPercent: 100, creatureType: 1, ownershipVerified: true, struct_va: '0x303' },
+    { id: 14, name: 'Rat', pos: { x: 100, y: 99, z: 7 }, canAttack: true, healthPercent: 100, creatureType: 1, ownershipVerified: true, struct_va: '0x304' }
+  ];
+
+  await value.start('walker'); await value.start('target');
+
+  // Step 1: attack
+  assert.equal((await value.runtime.tick()).action, 'attack');
+  // Step 2: m1
+  value.advance(); assert.equal((await value.runtime.tick()).action, 'talk');
+  // Step 3: m2 finishes combo; 4 rats die, only 1 rat remains (1 < 5 minCount)
+  value.advance();
+  assert.equal((await value.runtime.tick()).action, 'talk');
+  value.telemetry.creatures = [
+    ownPokemon,
+    { id: 10, name: 'Rat', pos: { x: 101, y: 100, z: 7 }, canAttack: true, healthPercent: 50, creatureType: 1, ownershipVerified: true, struct_va: '0x300' }
+  ];
+
+  // Revive waiting-interval
+  value.advance();
+  const reviveWait = await value.runtime.tick();
+  assert.equal(reviveWait.status, 'revive');
+
+  // Revive hotkey
+  value.advance(500);
+  const reviveSent = await value.runtime.tick();
+  assert.equal(reviveSent.status, 'revive');
+  assert.equal(reviveSent.action, 'hotkey');
+
+  // Revive finishes; remaining (1) > finishRemainingCount (0), so restarts combo
+  value.advance();
+  const restart = await value.runtime.tick();
+  assert.equal(restart.status, 'combat');
+  assert.equal(restart.action, 'restart-combo');
+
+  // Even though 1 rat < minCount (5), combat stays ACTIVE and does NOT revert to luring!
+  value.advance();
+  const nextCombo = await value.runtime.tick();
+  assert.equal(nextCombo.action, 'talk');
+  assert.equal(value.events.at(-1).request.key, 'F1');
+});
+
+test('AutoRevive with waitForPokemon holds the revive state until the own Pokemon is back', async () => {
+  const value = fixture();
+  value.config.target.combo.finishRemainingCount = 1;
+  value.config.target.autoRevive = { enabled: true, hotkey: 'F9', interval: 500, waitForPokemon: true };
+  await value.start('walker'); await value.start('target');
+
+  await value.runtime.tick();
+  value.advance(); await value.runtime.tick();
+  value.advance(); await value.runtime.tick();
+  value.advance();
+  assert.equal((await value.runtime.tick()).action, 'waiting-interval');
+  value.advance(500);
+  assert.equal((await value.runtime.tick()).action, 'hotkey');
+  const sent = value.events.filter(event => event.request).length;
+
+  /* Own Pokemon com HP 0: o revive ja' saiu, mas o runtime continua em espera
+   * e nao volta a atacar nem a andar. */
+  value.telemetry.creatures = value.telemetry.creatures.map(creature =>
+    creature.creatureType === 3 ? { ...creature, healthPercent: 0 } : creature);
+  value.advance();
+  const waiting = await value.runtime.tick();
+  assert.equal(waiting.status, 'revive');
+  assert.equal(waiting.action, 'waiting-pokemon');
+  assert.equal(value.events.filter(event => event.request).length, sent);
+  value.advance();
+  assert.equal((await value.runtime.tick()).action, 'waiting-pokemon');
+
+  /* Pokemon volta com HP: o revive conclui e o Walker retoma no mesmo tick. */
+  value.telemetry.creatures = value.telemetry.creatures.map(creature =>
+    creature.creatureType === 3 ? { ...creature, healthPercent: 100 } : creature);
+  value.advance();
+  const resumed = await value.runtime.tick();
+  assert.equal(resumed.status, 'walking');
+  assert.equal(resumed.action, 'move');
+});
+
+test('AutoRevive waitForPokemon honours hoenn.pokeReadyTimeoutMs instead of a fixed 3.5 s', async () => {
+  const value = fixture();
+  value.config.target.combo.finishRemainingCount = 1;
+  value.config.hoenn = { pokeReadyTimeoutMs: 5000 };
+  value.config.target.autoRevive = { enabled: true, hotkey: 'F9', interval: 500, waitForPokemon: true };
+  await value.start('walker'); await value.start('target');
+
+  await value.runtime.tick();
+  value.advance(); await value.runtime.tick();
+  value.advance(); await value.runtime.tick();
+  value.advance();
+  assert.equal((await value.runtime.tick()).action, 'waiting-interval');
+  value.advance(500);
+  assert.equal((await value.runtime.tick()).action, 'hotkey');
+
+  /* Own Pokemon com HP 0: so' o timeout pode concluir o revive daqui em diante. */
+  value.telemetry.creatures = value.telemetry.creatures.map(creature =>
+    creature.creatureType === 3 ? { ...creature, healthPercent: 0 } : creature);
+
+  /* 3.500 ms: o literal fixo antigo ja' teria concluido o revive. */
+  value.advance(3500);
+  assert.equal((await value.runtime.tick()).action, 'waiting-pokemon');
+  /* 4.000 ms: continua esperando, porque o timeout configurado e' maior. */
+  value.advance(500);
+  assert.equal((await value.runtime.tick()).action, 'waiting-pokemon');
+  /* Passa o timeout configurado: o revive conclui e o Walker retoma no mesmo
+   * tick. */
+  value.advance(1001);
+  const finished = await value.runtime.tick();
+  assert.equal(finished.status, 'walking');
+  assert.equal(finished.action, 'move');
+});
+
+test('unsupported or mismatched identity profile keeps Target blocked with its own code', async () => {
+  for (const [change, pattern] of [
+    [value => { value.telemetry.creatureIdentityProfile.executableSha256 = 'f'.repeat(64); },
+      /perfil de compatibilidade confirmado/u],
+    [value => { value.telemetry.creatureIdentityProfile.typeOffset = '0x999'; },
+      /não corresponde à versão do cliente/u],
+  ]) {
+    const value = fixture();
+    change(value);
+    await assert.rejects(value.start('target'), pattern);
+    assert.equal(value.runtime.sessions[0].capabilities.targetKeyboard, false);
+    assert.equal(value.events.some(event => event.request), false);
+    /* O codigo acompanha o motivo: nao e' um bloqueio generico que o operador
+     * nao consegue diagnosticar. */
+    assert.match(value.runtime.sessions[0].capabilities.targetKeyboardIssueCode,
+      /^COMBAT_PROFILE_(UNSUPPORTED|MISMATCH)$/u);
+  }
+});
+
+test('identity profile invalidated mid-run pauses Target and blocks every later tick', async () => {
+  const value = fixture(); await value.start('walker'); await value.start('target');
+  assert.equal((await value.runtime.tick()).action, 'attack');
+  const sent = value.events.filter(event => event.request).length;
+  const waypoint = value.runtime.engine.state.index;
+
+  /* A leitura de criaturas passa a informar um build sem perfil confirmado. */
+  value.telemetry.creatureIdentityProfile.executableSha256 = 'f'.repeat(64);
+  value.advance();
+  const blocked = await value.runtime.tick();
+  assert.equal(blocked.status, 'error');
+  assert.match(blocked.error, /perfil de compatibilidade confirmado/u);
+  assert.equal(value.runtime.paused, true);
+  /* Nada foi enviado com o perfil nao validado. */
+  assert.equal(value.events.filter(event => event.request).length, sent);
+
+  /* A retomada nao revalida o perfil: ela passa, mas o tick seguinte bloqueia
+   * de novo — e o Walker, que nao tem percepcao valida, nao anda. */
+  value.advance();
+  await value.runtime.togglePause();
+  value.advance();
+  assert.equal((await value.runtime.tick()).status, 'error');
+  assert.equal(value.runtime.paused, true);
+  assert.equal(value.runtime.engine.state.index, waypoint);
+  assert.equal(value.events.filter(event => event.request).length, sent);
+
+  /* Perfil de volta: o Target volta a atacar. */
+  value.telemetry.creatureIdentityProfile.executableSha256 =
+    '473df25c1edd23e7464ad3ba9b923a603051a8b4ae8004a95c06402f678294e6';
+  value.advance();
+  await value.runtime.togglePause();
+  value.advance();
+  await value.runtime.tick();
+  assert.equal(value.runtime.paused, false);
+  assert.equal(value.events.filter(event => event.request).length, sent + 1);
 });

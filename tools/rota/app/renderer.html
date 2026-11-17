@@ -1,0 +1,1086 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PKA Rota — Combate</title>
+<style>
+  :root {
+    --bg:#0d1117; --panel:#161b22; --line:#30363d; --fg:#e6edf3;
+    --muted:#8b949e; --accent:#2f81f7; --ok:#3fb950; --warn:#d29922;
+    --bad:#f85149; --tile:#1c2128;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{background:var(--bg);color:var(--fg);
+    font:13px/1.45 ui-monospace,"Cascadia Code",Consolas,monospace;
+    display:flex;flex-direction:column;overflow:hidden;user-select:none}
+  header{display:flex;align-items:center;gap:14px;padding:7px 12px;
+    border-bottom:1px solid var(--line);background:var(--panel);flex:0 0 auto}
+  header h1{font-size:13px;margin:0;font-weight:600;letter-spacing:.3px}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--muted)}
+  .dot.on{background:var(--ok);box-shadow:0 0 6px var(--ok)}
+  .dot.err{background:var(--bad)}
+  header .grow{flex:1}
+  .stat{color:var(--muted);white-space:nowrap}
+  .stat b{color:var(--fg);font-weight:600}
+  main{flex:1;display:flex;min-height:0}
+  #mapwrap{flex:1;position:relative;min-width:0}
+  canvas{display:block;width:100%;height:100%;cursor:crosshair}
+  aside{width:340px;flex:0 0 340px;border-left:1px solid var(--line);
+    background:var(--panel);display:flex;flex-direction:column;min-height:0;overflow-y:auto}
+  aside section{padding:9px 11px;border-bottom:1px solid var(--line);flex:0 0 auto}
+  h2{font-size:10px;text-transform:uppercase;letter-spacing:.9px;color:var(--muted);
+    margin:0 0 7px;font-weight:600;display:flex;align-items:center}
+  h2 .sp{flex:1}
+  button{font:inherit;background:#21262d;color:var(--fg);border:1px solid var(--line);
+    border-radius:5px;padding:4px 9px;cursor:pointer;white-space:nowrap}
+  button:hover:not(:disabled){border-color:var(--accent)}
+  button:disabled{opacity:.4;cursor:not-allowed}
+  button.primary{background:#1f6feb;border-color:#1f6feb}
+  button.danger{background:#da3633;border-color:#da3633}
+  button.on{background:#238636;border-color:#238636}
+  button.go{background:#1f6feb;border-color:#1f6feb;font-weight:600}
+  .row{display:flex;gap:5px;flex-wrap:wrap}
+  .row.tight{gap:4px}
+  #waypoints{max-height:150px;overflow-y:auto;min-height:34px}
+  .wp{display:flex;align-items:center;gap:6px;padding:3px 5px;border-radius:4px;
+    margin-bottom:2px;background:var(--tile);font-size:11px}
+  .wp .idx{color:var(--accent);font-weight:700;width:16px}
+  .wp .pos{flex:1}
+  .wp .del{padding:0 4px;line-height:1.2}
+  .empty{color:var(--muted);font-size:11px;padding:6px 0}
+  .kv{display:grid;grid-template-columns:auto 1fr;gap:1px 10px;font-size:11px}
+  .kv dt{color:var(--muted)}
+  .kv dd{margin:0;text-align:right;font-variant-numeric:tabular-nums}
+  #log{height:120px;overflow-y:auto;font-size:11px;background:#010409;
+    border-radius:5px;padding:5px 7px;border:1px solid var(--line)}
+  #log div{white-space:pre-wrap;word-break:break-word}
+  #log .ok{color:var(--ok)} #log .bad{color:var(--bad)}
+  #log .warn{color:var(--warn)} #log .dim{color:var(--muted)}
+  label.chk{display:flex;align-items:center;gap:4px;cursor:pointer;font-size:11px}
+  .hint{color:var(--muted);font-size:11px;margin-top:5px;line-height:1.35}
+  select{font:inherit;background:#010409;color:var(--fg);border:1px solid var(--line);
+    border-radius:5px;padding:3px 6px;width:100%}
+  .msgr{display:flex;gap:5px;margin-top:5px}
+  .msgr input{flex:1;font:inherit;background:#010409;color:var(--fg);
+    border:1px solid var(--line);border-radius:5px;padding:3px 6px;min-width:0}
+  .badge{display:inline-block;padding:1px 5px;border-radius:3px;font-size:10px;
+    background:#21262d;color:var(--muted)}
+  .badge.ok{background:#1a3a24;color:var(--ok)}
+  .badge.bad{background:#3d1a1a;color:var(--bad)}
+</style>
+</head>
+<body>
+
+<header>
+  <span class="dot" id="dot"></span>
+  <h1>PKA Rota</h1>
+  <span class="stat">pid <b id="pid">—</b></span>
+  <span class="stat">canal <b id="chan">—</b></span>
+  <span class="stat" id="worldWrap">mundo <b id="world">—</b></span>
+  <span class="grow"></span>
+  <span class="stat">pos <b id="pos">—</b></span>
+  <span class="stat">hp <b id="hp">—</b></span>
+  <span class="stat">criaturas <b id="ncre">—</b></span>
+  <span class="stat">z <b id="floor">—</b></span>
+</header>
+
+<main>
+  <div id="mapwrap"><canvas id="map"></canvas></div>
+
+  <aside>
+    <section>
+      <h2>Conexão</h2>
+      <select id="selProc"><option value="">procurando…</option></select>
+      <div class="row tight" style="margin-top:5px">
+        <button id="btnScan">Procurar</button>
+        <button id="btnConnect" class="go">Conectar</button>
+        <button id="btnDisconnect" class="danger">Soltar</button>
+      </div>
+      <div class="hint" id="connHint">Clique Procurar. Ele acha o jogo com personagem e injeta a DLL.</div>
+    </section>
+
+    <section>
+      <h2>Perfect lure</h2>
+      <div class="row tight" style="align-items:center">
+        <label class="chk" title="Agrupa os selvagens antes de soltar o combo">
+          <input type="checkbox" id="optLure" checked> lure
+        </label>
+        <span class="hint" style="margin:0">min</span>
+        <input type="number" id="lureMin" min="1" max="30" step="1" value="8"
+               title="Quantos selvagens precisam estar no raio para o combo sair">
+        <span class="hint" style="margin:0">range</span>
+        <input type="number" id="lureRange" min="1" max="10" step="1" value="3"
+               title="Raio em tiles ao redor do SEU Pokémon">
+        <span class="hint" style="margin:0">hp</span>
+        <input type="number" id="lureHp" min="1" max="100" step="1" value="30"
+               title="HP de emergência: comba mesmo sem fechar a formação">
+      </div>
+      <div class="hint" id="lureHint">min 8 · range 3 · hp 30%</div>
+      <div class="row tight" style="margin-top:5px">
+        <button id="btnLureApply">Aplicar</button>
+        <span class="badge" id="lureState">—</span>
+      </div>
+    </section>
+
+    <section>
+      <h2>Autopilot</h2>
+      <div class="row tight">
+        <button id="btnRun" class="primary">▶ Rodar rota</button>
+        <button id="btnRunOnce">1 volta</button>
+        <button id="btnPause">⏸</button>
+        <button id="btnStopAll" class="danger">Parar</button>
+      </div>
+      <div class="row tight" style="margin-top:6px">
+        <label class="chk"><input type="checkbox" id="optAttack" checked> atacar</label>
+        <label class="chk"><input type="checkbox" id="optHeal" checked> curar</label>
+        <label class="chk"><input type="checkbox" id="optCombo" checked> combo</label>
+      </div>
+      <div class="hint" id="runHint">Rota: 0 waypoints.</div>
+    </section>
+
+    <section>
+      <h2>Ações <span class="sp"></span><span class="badge" id="atkBadge">0 alvos</span></h2>
+      <div class="row tight">
+        <button id="btnAtkNear">Atacar</button>
+        <button id="btnCombo">Combo</button>
+        <button id="btnPotion">Poção</button>
+        <button id="btnRevive">Revive</button>
+      </div>
+      <div class="msgr">
+        <input id="msgText" placeholder="mensagem no chat" maxlength="200">
+        <button id="btnMsg">Enviar</button>
+      </div>
+      <div class="hint" id="combatHint">Nenhum alvo no seu andar.</div>
+    </section>
+
+    <section>
+      <h2>Waypoints <span class="sp"></span>
+        <button class="del" id="btnClear">limpar</button></h2>
+      <div id="waypoints"><div class="empty">Clique no mapa para adicionar.</div></div>
+      <div class="hint">Shift+arrastar move · roda do mouse dá zoom · clique adiciona</div>
+    </section>
+
+    <section>
+      <h2>Estado</h2>
+      <dl class="kv">
+        <dt>waypoint</dt><dd id="kvWp">—</dd>
+        <dt>status</dt><dd id="kvStatus">parado</dd>
+        <dt>comandos</dt><dd id="kvCmds">0</dd>
+        <dt>último</dt><dd id="kvLast">—</dd>
+        <dt>kill/loot</dt><dd id="kvKill">0 / 0</dd>
+        <dt>lure</dt><dd id="kvLure">—</dd>
+        <dt>z dos alvos</dt><dd id="kvTz">—</dd>
+      </dl>
+    </section>
+
+    <section style="flex:1 1 auto;display:flex;flex-direction:column;min-height:120px">
+      <h2>Log</h2>
+      <div id="log" style="flex:1"></div>
+    </section>
+  </aside>
+</main>
+
+<script>
+(() => {
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const canvas = $('map');
+  const ctx = canvas.getContext('2d');
+
+  const S = {
+    telemetry: null, waypoints: [], pid: null, channel: 'desconectado',
+    running: false, runOnce: false, paused: false, runIdx: 0, skipped: 0,
+    status: 'parado', cmds: 0, lastCmd: null, kills: 0, loots: 0,
+    view: { cx: 0, cy: 0, floor: 0, scale: 26, ready: false },
+    hover: null, dragging: null, attackLock: false, stepInFlight: false,
+    potionAt: 0, POTION_CD: 1500, reviveAt: 0, REVIVE_CD: 3000,
+    lure: null,   // ultima decisao do DynamicLure (fase/boxed/action)
+    dead: false,
+    comboText: 'm5',
+    roster: [],
+    potionHp: 60,   // target.combo.sequenceText da config real do Shiba
+  };
+
+  /* ───────── log ───────── */
+  function log(msg, cls = '') {
+    const el = document.createElement('div');
+    el.className = cls;
+    const t = new Date().toLocaleTimeString('pt-BR', { hour12: false });
+    el.textContent = `${t}  ${msg}`;
+    const box = $('log');
+    box.appendChild(el);
+    while (box.children.length > 400) box.removeChild(box.firstChild);
+    box.scrollTop = box.scrollHeight;
+  }
+
+  /* ───────── ponte ───────── */
+  async function cmd(name, parameter, options) {
+    try {
+      const r = await window.pka.command(name, parameter, options);
+      if (!r.ok) { log(`${name} falhou: ${r.error}`, 'bad'); return null; }
+      S.cmds++;
+      const st = r.ack ? r.ack.status : null;
+      S.lastCmd = { name, parameter, status: st };
+      const label = parameter === undefined ? name
+        : `${name} ${typeof parameter === 'string' ? JSON.stringify(parameter) : parameter}`;
+      log(`${label} -> status ${st}`, st === 0 ? 'ok' : 'warn');
+      return r.ack;
+    } catch (e) { log(`${name} erro: ${e.message}`, 'bad'); return null; }
+  }
+
+  /* ───────── mundo ───────── */
+  function posValida(p) {
+    return Boolean(p && Number.isInteger(p.x) && Number.isInteger(p.y) && Number.isInteger(p.z)
+      && p.x > 0 && p.y > 0 && p.x < 60000 && p.y < 60000 && p.z >= 0 && p.z < 100);
+  }
+  function inWorld() {
+    const t = S.telemetry;
+    if (!t) return false;
+    if (!posValida(t.position)) return false;
+    if (typeof t.runtimeReady === 'boolean') return t.runtimeReady === true;
+    return true;
+  }
+  function isDead() {
+    const t = S.telemetry;
+    return Boolean(t && typeof t.healthPercent === 'number' && t.healthPercent <= 0);
+  }
+
+  /* ───────── alvos (medidos do POKEMON) ───────── */
+  function targets() {
+    const t = S.telemetry;
+    if (!t || !Array.isArray(t.creatures)) return [];
+    const me = t.position;
+    const origem = (t.ownPokemon && t.ownPokemon.pos) || me;
+    const ownId = t.ownPokemon && t.ownPokemon.id;
+    if (!posValida(me) || !origem) return [];
+    return t.creatures
+      .filter(c => c && c.type === 1 && c.healthPercent > 0 && c.pos)
+      .filter(c => c.id !== ownId)
+      .filter(c => c.pos.z === me.z)
+      .map(c => ({
+        ...c,
+        dist: Math.max(Math.abs(origem.x - c.pos.x), Math.abs(origem.y - c.pos.y)),
+        distPlayer: Math.max(Math.abs(me.x - c.pos.x), Math.abs(me.y - c.pos.y)),
+      }))
+      .sort((a, b) => a.dist - b.dist);
+  }
+
+  /* ───────── combo ─────────
+   *
+   * DESCOBERTA (2026-11-13, protocol.cjs linha 121): o combo REAL do Shiba
+   * NAO e' o comando `combo`. E' `talk` com a spellword (`m5`) acompanhado de
+   * `attackTargetId` e `expectedUuid`:
+   *
+   *   talk('m5', { expectedUuid: <uuid do pokemon>, attackTargetId: <id alvo> })
+   *
+   * O protocolo rejeita esse par fora de `talk`:
+   *   "Alvo/postura devem acompanhar uma skill de combo com UUID."
+   *
+   * DE ONDE VEM O UUID: a DLL NAO publica uuid (nao esta na telemetria). Ele
+   * sai do ROSTER da config real do Shiba (hoenn.roster), casado pelo NOME do
+   * pokemon ativo. Ex.:
+   *   Diglett  -> 55c2278f-a588-44c4-9f5e-73cf73f0f651
+   *   Squirtle -> f09e657e-5ab5-4de4-b265-197b33f49024
+   *   Magnemite-> cff56506-64a8-4e24-b677-598f36196501
+   *
+   * `combo('!autocombo')` tambem existe e e' despachado, mas ele so' ARMA a
+   * sequencia gravada no jogo — nao aponta para alvo. Era por isso que o
+   * target ia para o Magnemite e o combo nao saia. */
+  function comboSkill() {
+    // target.combo.sequenceText = "m5" na config real capturada do Shiba
+    return (S.comboText || 'm5').trim() || 'm5';
+  }
+
+  function pokemonUuid() {
+    const op = S.telemetry && S.telemetry.ownPokemon;
+    const nome = op && op.name;
+    if (!nome) return null;
+    // 1) roster da config real (fonte do uuid)
+    const alvo = nome.toLowerCase();
+    const hit = (S.roster || []).find(r => r && r.name && r.name.toLowerCase() === alvo);
+    if (hit && hit.uuid) return hit.uuid;
+    // 2) se a DLL um dia publicar, usa direto
+    if (op.uuid) return op.uuid;
+    return null;
+  }
+
+  async function fireCombo(alvoId) {
+    const skill = comboSkill();
+    const uuid = pokemonUuid();
+    if (alvoId && uuid) {
+      const ack = await cmd('talk', skill, { expectedUuid: uuid, attackTargetId: alvoId });
+      if (ack && ack.status === 0) return true;
+    }
+    if (!uuid) log('combo: uuid do pokemon ausente (roster sem ' + (S.telemetry?.ownPokemon?.name || '?') + ')', 'warn');
+    // fallback: arma a sequencia nativa (sem alvo)
+    const ack2 = await cmd('combo', '!autocombo ' + skill);
+    return Boolean(ack2 && ack2.status === 0);
+  }
+  /* FORMATOS REAIS (provados pelos vetores capturados do fornecedor):
+   *
+   *   potion -> NUMERO, slot da action bar. Texto e' REJEITADO pelo protocolo.
+   *             config real: hoenn.potionActionBar = 3
+   *   revive -> o protocolo SEMPRE rejeita "revive" ("comando nao suportado").
+   *             O caminho que funciona e' hotkey com a tecla configurada.
+   *             config real: autoRevive.hotkey = "f"
+   *
+   * Eu tinha feito ao contrario e quebrei 52 vetores byte-exatos. */
+  let POTION_SLOT = 3;
+  let REVIVE_KEY = 'f';
+
+  function healAt() {
+    // hoenn.potionHpPercent da config real (60). Piso 1 para nunca curar em 100%.
+    const v = Number(S.potionHp);
+    return Number.isFinite(v) && v > 0 && v < 100 ? v : 60;
+  }
+
+  async function potion(why) {
+    const now = Date.now();
+    if (now - S.potionAt < S.POTION_CD) return false;
+    S.potionAt = now;
+    await cmd('potion', POTION_SLOT);
+    log('pocao slot ' + POTION_SLOT + ' (' + why + ')', 'dim');
+    return true;
+  }
+  async function revive(why) {
+    const now = Date.now();
+    if (now - S.reviveAt < S.REVIVE_CD) return false;
+    S.reviveAt = now;
+    // revive nao existe no protocolo; usa a tecla do autoRevive
+    await cmd('hotkey', REVIVE_KEY);
+    log('revive tecla "' + REVIVE_KEY + '" (' + why + ')', 'dim');
+    return true;
+  }
+
+  /* ───────── telemetria ───────── */
+  window.pka.onTelemetry(t => {
+    S.telemetry = t;
+    const p = t.position;
+    $('pid').textContent = t.clientPid != null ? t.clientPid : '—';
+    $('pos').textContent = posValida(p) ? `${p.x},${p.y}` : '—';
+    $('hp').textContent = t.healthPercent != null ? t.healthPercent : '—';
+    $('hp').style.color = t.healthPercent <= 30 ? 'var(--bad)'
+      : t.healthPercent <= 60 ? 'var(--warn)' : 'var(--ok)';
+    $('ncre').textContent = Array.isArray(t.creatures) ? t.creatures.length : '—';
+    $('floor').textContent = posValida(p) ? p.z : '—';
+
+    const w = inWorld();
+    $('world').textContent = w ? 'ok' : 'fora';
+    $('world').style.color = w ? 'var(--ok)' : 'var(--bad)';
+
+    if (posValida(p)) {
+      S.view.floor = p.z;
+      if (!S.view.ready) { S.view.cx = p.x; S.view.cy = p.y; S.view.ready = true; }
+      ensureMapRegion();
+    }
+
+    const morto = isDead();
+    if (morto && !S.dead) { S.dead = true; log('HP 0 — personagem morreu', 'bad'); }
+    if (!morto && S.dead) { S.dead = false; log('personagem voltou', 'ok'); }
+
+    const cand = targets();
+    $('atkBadge').textContent = cand.length + ' alvo' + (cand.length === 1 ? '' : 's');
+    $('atkBadge').className = 'badge' + (cand.length ? ' ok' : '');
+
+    const hint = $('combatHint');
+    if (!cand.length) {
+      const outros = (t.creatures || []).filter(c => c.type === 1 && c.healthPercent > 0
+        && c.pos && p && c.pos.z !== p.z);
+      hint.textContent = outros.length
+        ? `Nenhum alvo no z=${p ? p.z : '?'}. ${outros.length} em z=${[...new Set(outros.map(c => c.pos.z))].join(',')}.`
+        : 'Nenhum selvagem visível.';
+      hint.style.color = 'var(--muted)';
+    } else {
+      const c = cand[0];
+      hint.textContent = `${c.name} a ${c.dist} tile(s) do Pokémon · hp ${c.healthPercent}%`;
+      hint.style.color = c.dist <= 2 ? 'var(--ok)' : 'var(--warn)';
+    }
+    $('kvTz').textContent = (t.creatures || []).filter(c => c.type === 1 && c.pos)
+      .map(c => c.pos.z).filter((v, i, a) => a.indexOf(v) === i).join(',') || '—';
+
+    $('btnRun').disabled = !w || !S.waypoints.length;
+    $('btnRunOnce').disabled = !w || !S.waypoints.length;
+    $('btnAtkNear').disabled = !w;
+    $('btnCombo').disabled = !w;
+    $('btnRevive').disabled = !w;
+
+    if (S.running && !S.paused) tick();
+    draw(); kv();
+  });
+
+  window.pka.onLog(line => log(line, 'dim'));
+
+  /* ───────── canvas ───────── */
+  function resize() {
+    const r = canvas.parentElement.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = Math.max(1, Math.floor(r.width * dpr));
+    canvas.height = Math.max(1, Math.floor(r.height * dpr));
+    canvas.style.width = r.width + 'px';
+    canvas.style.height = r.height + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    draw();
+  }
+  function toScreen(p) {
+    const { cx, cy, scale } = S.view;
+    return { x: canvas.clientWidth / 2 + (p.x - cx) * scale,
+             y: canvas.clientHeight / 2 + (p.y - cy) * scale };
+  }
+  function toWorld(sx, sy) {
+    const { cx, cy, scale } = S.view;
+    return { x: Math.round(cx + (sx - canvas.clientWidth / 2) / scale),
+             y: Math.round(cy + (sy - canvas.clientHeight / 2) / scale),
+             z: S.view.floor };
+  }
+
+  /* ───────── mapa OTMM ─────────
+   * O minimapa do jogo vem em tiles de 1x1 (flags, color, speed). Desenho a
+   * regiao visivel num canvas offscreen e escalo para a tela. Requisitar por
+   * tile seria uma chamada IPC por pixel; requisitar a regiao inteira quando
+   * o viewport muda e' uma chamada só.
+   *
+   * Cache: se a viewport ainda cabe na regiao carregada, nao pede de novo.
+   * Margem de 8 tiles evita refetch a cada passo. */
+  const mapCache = {
+    ok: false, file: null, x: 0, y: 0, z: -1, w: 0, h: 0,
+    img: null, imgData: null, flags: null, loading: false, error: null,
+  };
+
+  async function ensureMapRegion() {
+    if (!S.view.ready) return;
+    const W = canvas.clientWidth, H = canvas.clientHeight;
+    if (!W || !H) return;
+    const sc = S.view.scale;
+    const { cx, cy, floor } = S.view;
+
+    // tiles visiveis + margem
+    const halfW = Math.ceil((W / 2) / sc) + 8;
+    const halfH = Math.ceil((H / 2) / sc) + 8;
+    const nx = Math.max(0, Math.floor(cx - halfW));
+    const ny = Math.max(0, Math.floor(cy - halfH));
+    const nw = Math.min(2048, Math.ceil(halfW * 2));
+    const nh = Math.min(2048, Math.ceil(halfH * 2));
+
+    // ja' cabe no cache?
+    if (mapCache.ok && mapCache.z === floor
+        && nx >= mapCache.x && ny >= mapCache.y
+        && nx + nw <= mapCache.x + mapCache.w
+        && ny + nh <= mapCache.y + mapCache.h) {
+      return;
+    }
+    if (mapCache.loading) return;
+    mapCache.loading = true;
+    try {
+      const w = Math.min(700, nw), h = Math.min(700, nh);
+      const r = await window.pka.mapRegion(nx, ny, floor, w, h);
+      if (!r.ok) {
+        mapCache.error = r.error;
+        mapCache.ok = false;
+        log('mapa: ' + r.error, 'warn');
+        return;
+      }
+      const bin = atob(r.pixelsBase64);
+      const px = new Uint8ClampedArray(bin.length);
+      for (let i = 0; i < bin.length; i++) px[i] = bin.charCodeAt(i);
+      const fbin = atob(r.flagsBase64);
+      const fl = new Uint8Array(fbin.length);
+      for (let i = 0; i < fbin.length; i++) fl[i] = fbin.charCodeAt(i);
+
+      const off = document.createElement('canvas');
+      off.width = r.width; off.height = r.height;
+      off.getContext('2d').putImageData(new ImageData(px, r.width, r.height), 0, 0);
+
+      mapCache.ok = true;
+      mapCache.x = r.x; mapCache.y = r.y; mapCache.z = r.z;
+      mapCache.w = r.width; mapCache.h = r.height;
+      mapCache.img = off; mapCache.flags = fl;
+      mapCache.error = null;
+      draw();
+    } catch (e) {
+      mapCache.error = e.message;
+      mapCache.ok = false;
+    } finally {
+      mapCache.loading = false;
+    }
+  }
+
+  function drawMap() {
+    if (!mapCache.ok || mapCache.z !== S.view.floor) return false;
+    const sc = S.view.scale;
+    const s = toScreen({ x: mapCache.x, y: mapCache.y });
+    // desenha o bitmap escalado; imageSmoothing off mantem os tiles nitidos
+    const prev = ctx.imageSmoothingEnabled;
+    ctx.imageSmoothingEnabled = sc >= 8;
+    ctx.drawImage(mapCache.img, s.x, s.y, mapCache.w * sc, mapCache.h * sc);
+    ctx.imageSmoothingEnabled = prev;
+
+    // escurece tiles nao vistos para o usuario saber onde e' explorado
+    if (sc >= 10 && mapCache.flags) {
+      ctx.fillStyle = 'rgba(13,17,23,0.72)';
+      for (let ty = 0; ty < mapCache.h; ty++) {
+        for (let tx = 0; tx < mapCache.w; tx++) {
+          if (mapCache.flags[ty * mapCache.w + tx] & 1) continue;
+          ctx.fillRect(s.x + tx * sc, s.y + ty * sc, sc, sc);
+        }
+      }
+    }
+    return true;
+  }
+
+  function draw() {
+    const W = canvas.clientWidth, H = canvas.clientHeight;
+    if (!W || !H) return;
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = '#0d1117'; ctx.fillRect(0, 0, W, H);
+
+    const sc = S.view.scale, { cx, cy } = S.view;
+    const x0 = Math.floor(cx - (W / 2) / sc) - 1, x1 = Math.ceil(cx + (W / 2) / sc) + 1;
+    const y0 = Math.floor(cy - (H / 2) / sc) - 1, y1 = Math.ceil(cy + (H / 2) / sc) + 1;
+
+    const temMapa = drawMap();
+
+    // grade: so' quando nao ha mapa (com mapa atrapalha a leitura)
+    if (!temMapa) {
+      ctx.strokeStyle = '#21262d'; ctx.lineWidth = 1; ctx.beginPath();
+      for (let x = x0; x <= x1; x++) {
+        const s = toScreen({ x, y: y0 });
+        ctx.moveTo(Math.round(s.x) + .5, 0); ctx.lineTo(Math.round(s.x) + .5, H);
+      }
+      for (let y = y0; y <= y1; y++) {
+        const s = toScreen({ x: x0, y });
+        ctx.moveTo(0, Math.round(s.y) + .5); ctx.lineTo(W, Math.round(s.y) + .5);
+      }
+      ctx.stroke();
+    }
+
+    ctx.fillStyle = temMapa ? 'rgba(139,148,158,.75)' : '#484f58';
+    ctx.font = '10px ui-monospace, monospace';
+    ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+    for (let x = x0; x <= x1; x++) {
+      if (x % 10) continue;
+      const s = toScreen({ x, y: y1 }); ctx.fillText(String(x), s.x + 2, s.y + 2);
+    }
+    for (let y = y0; y <= y1; y++) {
+      if (y % 10) continue;
+      const s = toScreen({ x: x0, y }); ctx.fillText(String(y), s.x + 2, s.y + 2);
+    }
+
+    if (S.waypoints.length) {
+      ctx.strokeStyle = 'rgba(47,129,247,.5)'; ctx.lineWidth = 2; ctx.beginPath();
+      S.waypoints.forEach((w, i) => {
+        const p = toScreen(w.pos);
+        if (i === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y);
+      });
+      ctx.stroke();
+      S.waypoints.forEach((w, i) => {
+        const p = toScreen(w.pos);
+        const active = S.running && i === (S.runIdx % S.waypoints.length);
+        ctx.beginPath(); ctx.arc(p.x, p.y, active ? 9 : 6, 0, Math.PI * 2);
+        ctx.fillStyle = active ? '#238636' : (w.pos.z === S.view.floor ? '#2f81f7' : '#484f58');
+        ctx.fill(); ctx.strokeStyle = '#0d1117'; ctx.lineWidth = 2; ctx.stroke();
+        ctx.fillStyle = '#fff'; ctx.font = 'bold 9px ui-monospace, monospace';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(String(i + 1), p.x, p.y);
+      });
+    }
+
+    const t = S.telemetry;
+    if (t && Array.isArray(t.creatures)) {
+      for (const c of t.creatures) {
+        if (!c.pos) continue;
+        const p = toScreen(c.pos);
+        const mine = c.pos.z === S.view.floor;
+        const isOwn = t.ownPokemon && c.id === t.ownPokemon.id;
+        let color = '#484f58';
+        if (isOwn) color = '#3fb950';
+        else if (c.type === 1 && mine) color = c.healthPercent > 0 ? '#f85149' : '#30363d';
+        else if (c.type === 1) color = '#6e2f2f';
+        ctx.beginPath(); ctx.arc(p.x, p.y, mine ? 7 : 5, 0, Math.PI * 2);
+        ctx.fillStyle = color; ctx.globalAlpha = mine ? 1 : .4; ctx.fill(); ctx.globalAlpha = 1;
+        if (mine && c.type === 1 && !isOwn) {
+          ctx.fillStyle = '#e6edf3'; ctx.font = '10px ui-monospace, monospace';
+          ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+          ctx.fillText(`${c.name} ${c.healthPercent}%`, p.x, p.y - 9);
+        }
+        if (isOwn) {
+          ctx.fillStyle = '#3fb950'; ctx.font = 'bold 9px ui-monospace, monospace';
+          ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+          ctx.fillText(c.name, p.x, p.y - 10);
+        }
+      }
+    }
+
+    if (t && posValida(t.position)) {
+      const p = toScreen(t.position);
+      ctx.beginPath(); ctx.arc(p.x, p.y, 9, 0, Math.PI * 2);
+      ctx.fillStyle = '#2f81f7'; ctx.fill();
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
+      ctx.fillStyle = '#fff'; ctx.font = 'bold 10px ui-monospace, monospace';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('@', p.x, p.y);
+      const hp = t.healthPercent == null ? 100 : t.healthPercent;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 14, -Math.PI / 2, -Math.PI / 2 + (hp / 100) * Math.PI * 2);
+      ctx.strokeStyle = hp <= 30 ? '#f85149' : hp <= 60 ? '#d29922' : '#3fb950';
+      ctx.lineWidth = 2.5; ctx.stroke();
+    }
+
+    if (S.hover) {
+      const w = toWorld(S.hover.x, S.hover.y), s = toScreen(w);
+      ctx.strokeStyle = 'rgba(230,237,243,.35)'; ctx.lineWidth = 1; ctx.beginPath();
+      ctx.moveTo(s.x - 8, s.y); ctx.lineTo(s.x + 8, s.y);
+      ctx.moveTo(s.x, s.y - 8); ctx.lineTo(s.x, s.y + 8); ctx.stroke();
+      ctx.fillStyle = 'rgba(230,237,243,.65)'; ctx.font = '10px ui-monospace, monospace';
+      ctx.textAlign = 'left'; ctx.textBaseline = 'bottom';
+      ctx.fillText(`${w.x},${w.y},${w.z}`, s.x + 10, s.y - 6);
+    }
+  }
+
+  /* ───────── waypoints ───────── */
+  function renderWps() {
+    const box = $('waypoints');
+    box.innerHTML = '';
+    if (!S.waypoints.length) {
+      box.innerHTML = '<div class="empty">Clique no mapa para adicionar.</div>';
+    } else {
+      S.waypoints.forEach((w, i) => {
+        const d = document.createElement('div');
+        d.className = 'wp';
+        d.innerHTML = `<span class="idx">${i + 1}</span>`
+          + `<span class="pos">${w.pos.x},${w.pos.y},${w.pos.z}</span>`
+          + `<button class="del" data-i="${i}">×</button>`;
+        box.appendChild(d);
+      });
+    }
+    $('runHint').textContent = `Rota: ${S.waypoints.length} waypoint(s).`
+      + (inWorld() ? '' : ' — personagem fora do mundo');
+    $('btnRun').disabled = !inWorld() || !S.waypoints.length;
+    $('btnRunOnce').disabled = !inWorld() || !S.waypoints.length;
+  }
+
+  async function persist() {
+    if (!S.pid) return;
+    const r = await window.pka.saveRoute(S.pid, S.waypoints);
+    if (r.ok) log(`rota salva (${S.waypoints.length} wp)`, 'dim');
+    else log('falha ao salvar rota: ' + r.error, 'bad');
+  }
+
+  /* ───────── executor ───────── */
+  async function stepTo(wp) {
+    if (!inWorld()) return 'fora';
+    const me = S.telemetry.position;
+    if (wp.pos.z !== me.z) return 'z-diff';
+    if (me.x === wp.pos.x && me.y === wp.pos.y) return 'reached';
+    const dx = wp.pos.x - me.x, dy = wp.pos.y - me.y;
+    const dir = Math.abs(dx) >= Math.abs(dy) ? (dx > 0 ? 1 : 3) : (dy > 0 ? 2 : 0);
+    S.stepInFlight = true;
+    await cmd('walk', dir);
+    setTimeout(() => { S.stepInFlight = false; }, 700);
+    return 'walking';
+  }
+
+  async function tick() {
+    if (!S.telemetry || S.stepInFlight) return;
+    const list = S.waypoints;
+    if (!list.length) { stopRun('rota vazia'); return; }
+    if (S.skipped >= list.length) {
+      stopRun(`rota toda em outro andar (você está em z=${S.telemetry.position && S.telemetry.position.z})`);
+      log('desenhe os waypoints no andar em que você está', 'dim');
+      return;
+    }
+
+    // morreu: revive e nao anda
+    if (isDead()) {
+      if ($('optHeal').checked) await revive('hp 0');
+      return;
+    }
+
+    // cura antes de tudo
+    if ($('optHeal').checked && S.telemetry.healthPercent <= healAt()) await potion('hp baixo');
+
+    /* ═══ PERFECT LURE ═══
+     *
+     * Regra (a mesma do Shiba, config real):
+     *
+     *   1. MIN COUNT: espera juntar `min` selvagens dentro do `range`
+     *      (medido do SEU Pokemon, porque e' ele que executa o golpe).
+     *      Enquanto nao fecha, NAO combate — continua andando a rota para
+     *      puxar mais monstro para perto.
+     *
+     *   2. RANGE: raio em tiles ao redor do Pokemon (config: 3).
+     *
+     *   3. HP EMERGENCIAL: se o SEU HP cair a `hp`%, solta o combo mesmo
+     *      com a formacao incompleta. Morrer esperando o 8o monstro e' pior
+     *      que combar com 4.
+     *
+     *   4. TIMEOUT: se passar `perfectLureTimeoutMs` sem fechar, tambem solta.
+     *
+     * O `DynamicLure` no main ja' calcula `boxed` e devolve `action`:
+     *   release      -> pode combar agora
+     *   walk-route   -> sem monstros: segue a rota
+     *   hold         -> ja' agrupou o possivel: para e espera
+     *   adjust-step  -> passo de ajuste fino
+     *
+     * O HP emergencial e' checado AQUI tambem, porque o engine usa
+     * ownPokemon.healthPercent (HP do Pokemon) e o emergencial que importa
+     * para sobreviver e' o do JOGADOR. */
+    let lureRelease = false;
+    if ($('optLure').checked) {
+      const hpPlayer = S.telemetry.healthPercent;
+      const hpEmergencia = Number($('lureHp').value) || 30;
+      if (typeof hpPlayer === 'number' && hpPlayer <= hpEmergencia) {
+        lureRelease = true;
+        $('lureState').textContent = `EMERG hp ${hpPlayer}%`;
+        $('lureState').className = 'badge bad';
+      } else {
+        const d = await window.pka.lureDecide({ comboReady: false, walkerMoving: S.stepInFlight });
+        if (d && d.ok) {
+          S.lure = d;
+          const alvo = Number($('lureMin').value) || d.config.minWilds;
+          $('lureState').textContent = `${d.phase} ${d.boxed}/${alvo}`;
+          $('lureState').className = 'badge' + (d.boxed >= alvo ? ' ok' : '');
+          $('kvLure').textContent = `${d.phase} (${d.boxed}/${alvo} em ${d.config.range} tiles)`;
+          if (d.action === 'release') lureRelease = true;
+          if (d.action === 'hold' && !lureRelease) { kv(); draw(); return; }
+        }
+      }
+    } else {
+      // lure desligado: combate quando houver alvo ao alcance
+      const cand = targets();
+      lureRelease = cand.length > 0 && cand[0].dist <= 3;
+    }
+
+    if (lureRelease && $('optAttack').checked && !S.attackLock) {
+      await fight();
+      kv(); draw();
+      return;
+    }
+
+    const wp = list[S.runIdx % list.length];
+    const r = await stepTo(wp);
+    if (r === 'fora') { stopRun('fora do mundo'); return; }
+    if (r === 'reached') {
+      log(`waypoint ${(S.runIdx % list.length) + 1} alcançado`, 'ok');
+      S.runIdx++; S.skipped = 0;
+      if (S.runOnce && S.runIdx >= list.length) { stopRun('volta completa'); return; }
+      kv(); return;
+    }
+    if (r === 'z-diff') {
+      S.skipped++;
+      log(`waypoint ${(S.runIdx % list.length) + 1} em z=${wp.pos.z}, você em z=${S.telemetry.position.z} — pulando`, 'warn');
+      S.runIdx++;
+      if (S.runIdx >= list.length) S.runIdx %= list.length;
+      kv(); return;
+    }
+    kv(); draw();
+  }
+
+  async function fight() {
+    const cand = targets();
+    if (!cand.length) return;
+    if (cand[0].dist > 3) return;
+    S.attackLock = true;
+    try {
+      for (const alvo of cand.slice(0, 3)) {
+        const hp0 = alvo.healthPercent;
+        await cmd('attack', alvo.id);
+        let agiu = false, morreu = false;
+        for (let i = 0; i < 3; i++) {
+          await new Promise(r => setTimeout(r, 500));
+          const now = targets().find(x => x.id === alvo.id);
+          if (!now) { morreu = true; break; }
+          if (now.healthPercent < hp0) { agiu = true; break; }
+          if ($('optHeal').checked && S.telemetry.healthPercent <= healAt()) await potion('combate');
+        }
+        if (morreu) { S.kills++; log(`${alvo.name} morreu`, 'ok'); break; }
+        if (agiu) {
+          if ($('optCombo').checked) await fireCombo(alvo.id);
+          const t0 = Date.now();
+          while (Date.now() - t0 < 5000) {
+            await new Promise(r => setTimeout(r, 500));
+            const n2 = targets().find(x => x.id === alvo.id);
+            if (!n2) { S.kills++; log(`${alvo.name} morreu`, 'ok'); break; }
+            if ($('optHeal').checked && S.telemetry.healthPercent <= healAt()) await potion('combate');
+            if ($('optAttack').checked) await cmd('attack', alvo.id);
+          }
+          break;
+        }
+        log(`${alvo.name} recusado (sem dano) — tentando outro`, 'warn');
+      }
+    } finally { S.attackLock = false; }
+  }
+
+  function startRun(once) {
+    if (!S.waypoints.length || !inWorld()) return;
+    S.running = true; S.runOnce = !!once; S.paused = false; S.skipped = 0;
+    const me = S.telemetry.position;
+    let best = 0, bd = Infinity;
+    S.waypoints.forEach((w, i) => {
+      if (w.pos.z !== me.z) return;
+      const d = Math.max(Math.abs(me.x - w.pos.x), Math.abs(me.y - w.pos.y));
+      if (d < bd) { bd = d; best = i; }
+    });
+    S.runIdx = best;
+    $('btnRun').textContent = '⏸ Pausar';
+    $('btnRun').classList.add('on');
+    log(`rota iniciada no waypoint ${best + 1}${once ? ' (1 volta)' : ''}`, 'ok');
+    tick();
+  }
+  function stopRun(why) {
+    S.running = false; S.runOnce = false; S.paused = false;
+    $('btnRun').textContent = '▶ Rodar rota';
+    $('btnRun').classList.remove('on');
+    if (why) log('rota parada: ' + why, 'dim');
+    kv();
+  }
+  function kv() {
+    $('kvWp').textContent = S.waypoints.length
+      ? `${(S.runIdx % S.waypoints.length) + 1}/${S.waypoints.length}` : '—';
+    $('kvStatus').textContent = S.running ? (S.paused ? 'pausado' : 'rodando') : 'parado';
+    $('kvCmds').textContent = String(S.cmds);
+    $('kvLast').textContent = S.lastCmd
+      ? `${S.lastCmd.name} (${S.lastCmd.status})` : '—';
+    $('kvKill').textContent = `${S.kills} / ${S.loots}`;
+  }
+
+  /* ───────── eventos de tela ───────── */
+  canvas.addEventListener('mousemove', e => {
+    const r = canvas.getBoundingClientRect();
+    S.hover = { x: e.clientX - r.left, y: e.clientY - r.top };
+    if (S.dragging) {
+      const w = toWorld(S.hover.x, S.hover.y);
+      S.view.cx -= w.x - S.dragging.at.x;
+      S.view.cy -= w.y - S.dragging.at.y;
+      S.dragging.at = w;
+      ensureMapRegion();
+    }
+    draw();
+  });
+  canvas.addEventListener('mouseleave', () => { S.hover = null; draw(); });
+  canvas.addEventListener('mousedown', e => {
+    if (e.button === 1 || e.button === 2 || e.shiftKey) {
+      const r = canvas.getBoundingClientRect();
+      S.dragging = { at: toWorld(e.clientX - r.left, e.clientY - r.top) };
+      canvas.style.cursor = 'grabbing';
+      e.preventDefault();
+    }
+  });
+  canvas.addEventListener('mouseup', () => { S.dragging = null; canvas.style.cursor = 'crosshair'; });
+  canvas.addEventListener('contextmenu', e => e.preventDefault());
+  canvas.addEventListener('click', e => {
+    if (S.dragging) return;
+    const r = canvas.getBoundingClientRect();
+    S.waypoints.push({ action: 'walk', pos: toWorld(e.clientX - r.left, e.clientY - r.top), param: '' });
+    renderWps(); persist(); draw();
+  });
+  canvas.addEventListener('wheel', e => {
+    e.preventDefault();
+    const r = canvas.getBoundingClientRect();
+    const mx = e.clientX - r.left, my = e.clientY - r.top;
+    const before = toWorld(mx, my);
+    S.view.scale = Math.max(8, Math.min(60, S.view.scale * (e.deltaY > 0 ? 0.9 : 1.1)));
+    const after = toWorld(mx, my);
+    S.view.cx += before.x - after.x;
+    S.view.cy += before.y - after.y;
+    ensureMapRegion();
+    draw();
+  }, { passive: false });
+
+  $('waypoints').addEventListener('click', e => {
+    const b = e.target.closest('button[data-i]');
+    if (!b) return;
+    S.waypoints.splice(Number(b.dataset.i), 1);
+    if (S.runIdx >= S.waypoints.length) S.runIdx = 0;
+    renderWps(); persist(); draw();
+  });
+
+  /* ───────── conexão ───────── */
+  async function scan() {
+    $('connHint').textContent = 'procurando…';
+    try {
+      const list = await window.pka.scan();
+      const sel = $('selProc');
+      sel.innerHTML = '';
+      if (!list.length) {
+        sel.innerHTML = '<option value="">nenhum jogo aberto</option>';
+        $('connHint').textContent = 'Abra o PokeAlliance e entre no mundo.';
+        return;
+      }
+      for (const p of list) {
+        const o = document.createElement('option');
+        o.value = String(p.pid);
+        o.textContent = `pid ${p.pid} ${p.hasChar ? '✓' : '(sem personagem)'}`
+          + `${p.dll ? ' [dll]' : ''} — ${p.title || 'sem título'}`;
+        if (!p.hasChar) o.disabled = true;
+        sel.appendChild(o);
+      }
+      const first = list.find(p => p.hasChar) || list[0];
+      sel.value = String(first.pid);
+      $('connHint').textContent = `${list.length} processo(s). ${list.filter(p => p.hasChar).length} com personagem.`;
+    } catch (e) { $('connHint').textContent = 'erro: ' + e.message; }
+  }
+
+  $('btnLureApply').addEventListener('click', async () => {
+    const min = Number($('lureMin').value);
+    const range = Number($('lureRange').value);
+    const hp = Number($('lureHp').value);
+    const r = await window.pka.lureSet({ minWilds: min, range, minHpPercent: hp });
+    if (!r.ok) { log('lure: ' + r.error, 'bad'); return; }
+    const c = r.config;
+    $('lureMin').value = c.minWilds;
+    $('lureRange').value = c.range;
+    $('lureHp').value = c.minHpPercent;
+    $('lureHint').textContent = `min ${c.minWilds} · range ${c.range} · hp ${c.minHpPercent}%`;
+    log(`lure: min ${c.minWilds}, range ${c.range} tiles, hp emergencia ${c.minHpPercent}%`, 'ok');
+  });
+
+  $('btnScan').addEventListener('click', scan);
+
+  $('btnConnect').addEventListener('click', async () => {
+    const pid = Number($('selProc').value);
+    if (!pid) { log('escolha um processo', 'bad'); return; }
+    $('connHint').textContent = 'conectando… (injeta a DLL se preciso)';
+    log('conectando ao pid ' + pid + '…', 'dim');
+    const r = await window.pka.connect(pid, { inject: true });
+    if (r.ok) {
+      S.pid = pid; S.channel = 'conectado';
+      $('chan').textContent = 'conectado';
+      $('dot').className = 'dot on';
+      $('connHint').textContent = `conectado ao pid ${pid}`;
+      log('conectado ao pid ' + pid, 'ok');
+      const lr = await window.pka.loadRoute(pid);
+      if (lr.ok && lr.route && Array.isArray(lr.route.waypoints) && lr.route.waypoints.length) {
+        S.waypoints = lr.route.waypoints;
+        renderWps();
+        log(`rota carregada: ${S.waypoints.length} wp`, 'dim');
+      }
+      draw();
+    } else {
+      $('chan').textContent = 'falhou';
+      $('dot').className = 'dot err';
+      $('connHint').textContent = 'falhou: ' + r.error;
+      log('conexão falhou: ' + r.error, 'bad');
+    }
+  });
+
+  $('btnDisconnect').addEventListener('click', async () => {
+    await window.pka.disconnect();
+    stopRun('');
+    S.channel = 'desconectado'; S.pid = null; S.telemetry = null;
+    $('chan').textContent = 'desconectado';
+    $('dot').className = 'dot';
+    log('desconectado', 'dim');
+    draw();
+  });
+
+  /* ───────── botões de ação ───────── */
+  $('btnAtkNear').addEventListener('click', async () => {
+    const cand = targets();
+    if (!cand.length) { log('nenhum alvo no seu andar', 'warn'); return; }
+    await fight();
+  });
+  $('btnCombo').addEventListener('click', async () => {
+    const cand = targets();
+    if (!cand.length) { log('combo precisa de alvo: nenhum selvagem no seu andar', 'warn'); return; }
+    const ok = await fireCombo(cand[0].id);
+    log(ok ? `combo ${comboSkill()} em ${cand[0].name}` : 'combo falhou', ok ? 'ok' : 'bad');
+  });
+  $('btnPotion').addEventListener('click', () => potion('manual'));
+  $('btnRevive').addEventListener('click', () => revive('manual'));
+  $('btnMsg').addEventListener('click', async () => {
+    const txt = $('msgText').value.trim();
+    if (!txt) return;
+    await cmd('talk', txt);
+    $('msgText').value = '';
+  });
+  $('msgText').addEventListener('keydown', e => { if (e.key === 'Enter') $('btnMsg').click(); });
+
+  $('btnRun').addEventListener('click', () => {
+    if (S.running && !S.paused) {
+      S.paused = true;
+      $('btnRun').textContent = '▶ Retomar';
+      $('btnRun').classList.remove('on');
+      log('rota pausada', 'dim');
+    } else if (S.running && S.paused) {
+      S.paused = false;
+      $('btnRun').textContent = '⏸ Pausar';
+      $('btnRun').classList.add('on');
+      log('rota retomada', 'dim');
+      tick();
+    } else startRun(false);
+    kv();
+  });
+  $('btnRunOnce').addEventListener('click', () => startRun(true));
+  $('btnPause').addEventListener('click', () => { if (S.running) { S.paused = !S.paused; kv(); } });
+  $('btnStopAll').addEventListener('click', () => { stopRun('manual'); cmd('stop', 0); });
+
+  $('btnClear').addEventListener('click', () => {
+    if (!S.waypoints.length) return;
+    if (!confirm('Limpar todos os waypoints?')) return;
+    S.waypoints = []; S.runIdx = 0; stopRun('');
+    renderWps(); persist(); draw();
+  });
+
+  window.addEventListener('resize', resize);
+  window.addEventListener('keydown', e => {
+    if (e.target.tagName === 'INPUT') return;
+    if (e.key === 'Escape') stopRun('esc');
+  });
+
+  /* ───────── boot ───────── */
+  resize(); renderWps(); kv();
+  log('PKA Rota iniciado', 'dim');
+  /* Carrega o minimapa do jogo ANTES de qualquer conexao: o usuario pode
+   * desenhar a rota sem o jogo aberto (o mapa e' o arquivo OTMM que o jogo
+   * gravou, nao precisa do processo vivo). */
+  /* Carrega o roster da config real (uuid do combo, slot da pocao, tecla do
+   * revive). Sem isso o combo por `talk` nao tem expectedUuid e a pocao usa
+   * slot chutado. */
+  window.pka.roster().then(r => {
+    if (!r.ok) { log('config: ' + r.error, 'warn'); return; }
+    S.roster = r.roster || [];
+    S.comboText = r.comboText || 'm5';
+    if (r.potionSlot) POTION_SLOT = r.potionSlot;
+    if (r.reviveKey) REVIVE_KEY = r.reviveKey;
+    if (r.potionHpPercent) S.potionHp = r.potionHpPercent;
+    log(`config: ${S.roster.length} pokemon no roster, combo ${S.comboText}, `
+      + `pocao slot ${POTION_SLOT} (@${S.potionHp}%), revive "${REVIVE_KEY}"`, 'ok');
+  }).catch(e => log('config erro: ' + e.message, 'bad'));
+
+  /* Carrega os tres numeros do perfect lure da config real e preenche a UI.
+   * O usuario pode mudar e clicar Aplicar — vale para a sessao. */
+  window.pka.lureConfig().then(r => {
+    if (!r.ok) { log('lure: ' + r.error, 'warn'); return; }
+    const c = r.config;
+    $('lureMin').value = c.minWilds;
+    $('lureRange').value = c.range;
+    $('lureHp').value = c.minHpPercent;
+    $('lureHint').textContent = `min ${c.minWilds} · range ${c.range} · hp ${c.minHpPercent}%`;
+    log(`perfect lure: min ${c.minWilds} selvagens em ${c.range} tiles, `
+      + `hp de emergencia ${c.minHpPercent}%`, 'ok');
+  }).catch(e => log('lure config erro: ' + e.message, 'bad'));
+
+  window.pka.mapOpen().then(r => {
+    if (r.ok) {
+      log(`mapa: ${r.filename} — ${r.blocks} blocos, andares ${r.floors.join(',')}`, 'ok');
+      S.view.ready = S.view.ready || false;
+    } else {
+      log('mapa indisponivel: ' + r.error, 'warn');
+      log('sem mapa, a tela mostra so a grade', 'dim');
+    }
+  }).catch(e => log('mapa erro: ' + e.message, 'bad'));
+  window.pka.status().then(s => {
+    if (s.connected) {
+      S.pid = s.connected.pid;
+      $('chan').textContent = 'conectado';
+      $('dot').className = 'dot on';
+      if (s.telemetry) { /* chega pelo evento */ }
+    }
+  }).catch(() => {});
+  scan();
+})();
+</script>
+</body>
+</html>

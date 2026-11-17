@@ -1,0 +1,49 @@
+{
+  "arquivo": "C:\\Users\\yago\\Documents\\Clone\\RECONSTRUÇAO OFIcial\\native\\pka_tap_572.jsonl",
+  "janela": {
+    "from": 1607421,
+    "to": null
+  },
+  "frames": {
+    "total": 9323,
+    "used": 150,
+    "outside": 384,
+    "unparsed": 0,
+    "withoutPosition": 0
+  },
+  "amostras": {
+    "mudancasDeTile": 2,
+    "passosPorSegundo": 4.91,
+    "retornosAoTileAnterior": 0,
+    "trocasDeAndar": 0,
+    "tickParaTras": 0,
+    "leiturasComMesmoTick": 0,
+    "histogramaDeSalto": {
+      "1": 2
+    }
+  },
+  "intervalosMs": {
+    "todos": {
+      "n": 2,
+      "min": 407,
+      "mediana": 29656,
+      "p90": 29656,
+      "max": 29656
+    },
+    "emMovimento": {
+      "n": 1,
+      "min": 407,
+      "mediana": 407,
+      "p90": 407,
+      "max": 407
+    }
+  },
+  "criaturas": {
+    "framesComCriatura": 150,
+    "framesComSelvagem": 0,
+    "tipos": {
+      "0": 150,
+      "3": 150
+    }
+  }
+}

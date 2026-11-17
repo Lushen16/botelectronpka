@@ -168,9 +168,13 @@ function inspectBlock(data) {
   if (data.captureVersion === undefined) return;
   if (data.captureVersion !== 1 || typeof data.itemInspectorAvailable !== 'boolean') fail('Identificação de corpos inválida.');
   const counts = data.itemCounts;
-  if (!Array.isArray(counts) || counts.length > MAX_ITEMS) fail('Contagem de itens inválida.');
-  for (const row of counts) {
-    if (!within(row.id, 1, 65535) || !within(row.count, 0, 65535)) fail('Contagem de itens inválida.');
+  /* itemCounts:null e valido: o cliente publica null quando nao ha contagem
+   * (confirmado em 1083 frames do tap real de 2026-11-04). */
+  if (counts !== null) {
+    if (!Array.isArray(counts) || counts.length > MAX_ITEMS) fail('Contagem de itens inválida.');
+    for (const row of counts) {
+      if (!within(row.id, 1, 65535) || !within(row.count, 0, 65535)) fail('Contagem de itens inválida.');
+    }
   }
   if (!Object.hasOwn(data, 'inspection')) fail('Inspeção de item inválida.');
   inspectionBlock(data);
@@ -180,6 +184,10 @@ function decodeTelemetry(input) {
   if (input.length > MAX_BYTES) fail('Telemetria excedeu 1 MB.');
   const data = JSON.parse(input.toString('utf8'));
   if (data.schema !== 2 || typeof data.nativeVerified !== 'boolean') fail('Telemetria nativa incompatível.');
+  /* runtimeReady: "posso agir agora?" — lido do gate do runtime do jogo.
+   * Ausente em DLLs antigas; quando presente, tem que ser booleano (nao
+   * aceitamos 0/1/"true", que mascararia um erro de encode). */
+  if (data.runtimeReady !== undefined && typeof data.runtimeReady !== 'boolean') fail('Prontidão do runtime inválida.');
   if (data.combatDispatchVersion !== undefined && data.combatDispatchVersion !== 1) fail('Dispatcher de combo incompatível.');
   if (data.dynamicLureVersion !== undefined && data.dynamicLureVersion !== 1) fail('Dynamic Lure incompatível.');
   if (data.guildDailyAvailable !== undefined && typeof data.guildDailyAvailable !== 'boolean') fail('Disponibilidade da daily guild inválida.');

@@ -15,7 +15,10 @@ function fixture() {
   const raw = { pid: 42, generatedAt: new Date(clock).toISOString(),
     player: { name: 'Ash', pos: { x: 100, y: 100, z: 7 } } };
   const sent = [];
-  const config = { walker: { loop: false, waypoints: [{ action: 'walk', pos: { x: 102, y: 100, z: 7 } }] } };
+  /* `stepIntervalMs: 0`: estes testes avancam o relogio em 300 ms, abaixo do
+   * piso real de 406 ms medido no cliente. O piso em si tem teste proprio em
+   * `tests/engines.test.cjs` ("piso de cadencia..."). */
+  const config = { walker: { loop: false, stepIntervalMs: 0, waypoints: [{ action: 'walk', pos: { x: 102, y: 100, z: 7 } }] } };
   const runtime = new WalkerInputRuntime({ getSession: () => rpmSession(raw, clock), playerName: 'Ash', automatic: false,
     now: () => clock, input: async (pid, direction, focus) => { sent.push({ pid, direction, focus }); } });
   const refresh = (time, position) => { clock = time; raw.generatedAt = new Date(time).toISOString(); if (position) raw.player.pos = position; };
@@ -117,6 +120,7 @@ test('a waypoint completes only after the RPM coordinate reaches it', async () =
 
 test('identical snapshots and the 250ms throttle prevent repeated inputs', async () => {
   const value = fixture();
+  value.config.walker.waypoints[0].pos.x = 103;
   await value.start();
   await value.runtime.tick();
   value.time(10250);

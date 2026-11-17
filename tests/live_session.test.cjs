@@ -49,6 +49,18 @@ test('a frozen snapshot is flagged stale so the walker refuses it', () => {
   assert.throws(() => walkerModel.currentPosition(session), /Aguardando posição/);
 });
 
+test('RPM exposes only observed HP and never supplies a healthy fallback', () => {
+  const raw = { pid: 42, generatedAt: new Date(10000).toISOString(),
+    player: { name: 'Ash', pos: { x: 100, y: 100, z: 7 } } };
+  for (const hp of [undefined, null, NaN, -1, 101, '20', 0, 20, 100]) {
+    raw.player.hp = hp;
+    const session = rpmSession(raw, 10000);
+    const expected = Number.isFinite(hp) && hp >= 0 && hp <= 100 ? hp : undefined;
+    assert.equal(session.healthPercent, expected);
+    assert.equal(session.telemetry.healthPercent, expected);
+  }
+});
+
 test('a logged-out client stays offline even with fresh cached player coordinates', () => {
   const raw = { pid: 1234, online: false, generatedAt: new Date().toISOString(),
     player: { name: 'Nobutdopai', pos: { x: 3319, y: 2277, z: 9 } } };

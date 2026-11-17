@@ -1,0 +1,18 @@
+{
+  "provider": "ElevenLabs",
+  "model": "eleven_multilingual_v2",
+  "voiceId": "JBFqnCBsd6RMkjVDRZzb",
+  "voiceName": "George",
+  "language": "pt-BR",
+  "format": "mp3_44100_128",
+  "source": "https://elevenlabs.io/docs/api-reference/text-to-speech/convert",
+  "generatedAt": "2026-10-25T23:45:00.978498+00:00",
+  "file": "instance-entered.mp3",
+  "text": "Você entrou na instância.",
+  "voiceSettings": {
+    "stability": 0.5,
+    "similarity_boost": 0.75
+  },
+  "bytes": 28464,
+  "sha256": "b19bc0ae9baa5e4d9a8c93e1406a136882ed7d328871801c7f5b7928a38da9ef"
+}

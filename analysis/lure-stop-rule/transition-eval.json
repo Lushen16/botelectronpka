@@ -1,0 +1,61 @@
+{
+ "generatedAt": "2026-11-11T20:28:34.785Z",
+ "input": "snapshot-17748-2026-11-11T1411.jsonl",
+ "toleranceMs": 250,
+ "holdoutFraction": 0.4,
+ "sampled": {
+  "kind6InLure": 24011,
+  "kind5WithSpatial": 8,
+  "comparableFrames": 0
+ },
+ "reproduction": {
+  "expected": "7.513/7.671 = 97,9% conforme CHECKPOINT adendo 14",
+  "got": "0/0 = NaN%",
+  "reproduces": false,
+  "matrix": {}
+ },
+ "transitions": {
+  "reference": {
+   "total": 0,
+   "stops": 0,
+   "resumes": 0
+  },
+  "ours": {
+   "total": 0,
+   "stops": 0,
+   "resumes": 0
+  },
+  "all": {
+   "pairs": 0,
+   "missed": 0,
+   "extra": 0
+  },
+  "stops": {
+   "pairs": 0,
+   "missed": 0,
+   "extra": 0,
+   "dt": []
+  },
+  "resumes": {
+   "pairs": 0,
+   "missed": 0,
+   "extra": 0,
+   "dt": []
+  }
+ },
+ "episodeSplit": {
+  "episodes": 0,
+  "discovery": {
+   "episodes": 0,
+   "frames": 0,
+   "agreement": null
+  },
+  "holdout": {
+   "episodes": 0,
+   "frames": 0,
+   "agreement": null
+  }
+ },
+ "divergencePatterns": {},
+ "divergences": []
+}

@@ -48,6 +48,25 @@ class IdentityChecks(unittest.TestCase):
     def validate(self):
         return identity.validate_guard(self.guard, 42, self.read, self.profile, lambda: self.clock)
 
+    def test_missing_pet_requires_explicit_hostile_target_policy(self):
+        self.guard['own'] = None
+        with self.assertRaisesRegex(ValueError, 'incompleto'):
+            self.validate()
+        self.guard['allowMissingOwn'] = True
+        result = self.validate()
+        self.assertIsNone(result['ownPokemonId'])
+        self.assertEqual(result['targetId'], self.guard['target']['id'])
+        self.wild[identity.TYPE_OFFSET] = 3
+        with self.assertRaisesRegex(ValueError, 'target'):
+            self.validate()
+
+    def test_missing_pet_policy_never_authorizes_healing(self):
+        self.guard['own'] = None
+        self.guard['allowMissingOwn'] = True
+        with self.assertRaisesRegex(ValueError, 'incompleto'):
+            identity.validate_guard(self.guard, 42, self.read, self.profile,
+                                    lambda: self.clock, require_target=False)
+
     def test_recorded_own_and_wild_have_distinct_identity_not_names(self):
         self.assertEqual(self.guard["own"]["creatureType"], 3)
         self.assertTrue(self.guard["own"]["isOwnPokemon"])
@@ -142,6 +161,36 @@ class IdentityChecks(unittest.TestCase):
         clocks = iter((10000, 10501))
         with self.assertRaisesRegex(ValueError, "expirada"):
             identity.validate_guard(self.guard, 42, self.read, self.profile, lambda: next(clocks))
+
+    def test_hotkeys_allow_movement_but_keep_identity_floor_health_and_freshness_guards(self):
+        struct.pack_into("<i", self.wild, 0x30, 1)
+        struct.pack_into("<i", self.player, 0x30, 2)
+        identity.validate_guard(self.guard, 42, self.read, self.profile, self.clock, positional=False)
+        for field, offset, value in (("type", identity.TYPE_OFFSET, 3), ("hp", 0xC0, 0)):
+            previous = self.wild[offset]
+            self.wild[offset] = value
+            with self.assertRaises(ValueError, msg=field):
+                identity.validate_guard(self.guard, 42, self.read, self.profile, self.clock, positional=False)
+            self.wild[offset] = previous
+        with self.assertRaisesRegex(ValueError, "expirada"):
+            identity.validate_guard(self.guard, 42, self.read, self.profile, 10501, positional=False)
+        struct.pack_into("<h", self.wild, 0x38, self.guard["player"]["pos"]["z"] + 1)
+        with self.assertRaisesRegex(ValueError, "andar"):
+            identity.validate_guard(self.guard, 42, self.read, self.profile, self.clock, positional=False)
+
+    def test_player_movement_requires_reprojection_for_clicks(self):
+        struct.pack_into("<i", self.player, 0x30, self.guard["player"]["pos"]["x"] + 1)
+        with self.assertRaises(identity.TargetMovedError):
+            self.validate()
+
+    def test_healing_validates_own_identity_without_hostile_target(self):
+        del self.guard["target"]
+        identity.validate_guard(self.guard, 42, self.read, self.profile, self.clock,
+                                positional=False, require_target=False)
+        self.own[identity.TYPE_OFFSET] = 1
+        with self.assertRaisesRegex(ValueError, "posse incerta"):
+            identity.validate_guard(self.guard, 42, self.read, self.profile, self.clock,
+                                    positional=False, require_target=False)
 
 
 if __name__ == "__main__":

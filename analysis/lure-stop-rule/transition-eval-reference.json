@@ -1,0 +1,15 @@
+{
+ "framesInLure": 24011,
+ "episodes": 1576,
+ "referenceTransitions": {
+  "total": 325,
+  "stops": 155,
+  "resumes": 170
+ },
+ "split": {
+  "discoveryEpisodes": 945,
+  "discoveryTransitions": 187,
+  "holdoutEpisodes": 631,
+  "holdoutTransitions": 138
+ }
+}

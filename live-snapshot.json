@@ -4,33 +4,21 @@
     "name": "pka_live_session",
     "version": 1
   },
-  "pid": 38660,
+  "pid": 10136,
   "image": "C:\\Users\\yago\\AppData\\Local\\PokeAlliance Games\\PokeAlliance\\PokeAlliance_dx.exe",
-  "generatedAt": "2026-10-31T03:55:32.034894+00:00",
+  "generatedAt": "2026-11-15T00:44:52.754986+00:00",
   "player": {
-    "name": "Nobutdopai",
+    "name": "Vousabotdenovo",
     "pos": {
-      "x": 3314,
-      "y": 2281,
-      "z": 9
+      "x": 956,
+      "y": 1404,
+      "z": 6
     },
-    "struct_va": "0x1ddf55d7d40"
+    "hp": 98,
+    "healthPercent": 98,
+    "struct_va": "0x155b15f9a20"
   },
-  "creatures": [
-    {
-      "id": 268455111,
-      "name": "Nobutdopai",
-      "type": 2,
-      "healthPercent": 100,
-      "canAttack": false,
-      "pos": {
-        "x": 3291,
-        "y": 2266,
-        "z": 9
-      },
-      "struct_va": "0x2131ddb12d0"
-    }
-  ],
+  "creatures": [],
   "live": {
     "source": "cached-va",
     "chains": [
@@ -41,9 +29,8 @@
       "0x3938930",
       "0x3938938"
     ],
-    "module_base": "0x7ff716f80000"
+    "module_base": "0x7ff6f4c20000"
   },
-  "creaturesGeneratedAt": "2026-10-29T02:57:16.973150+00:00",
-  "clientWindowTitle": "PokeAlliance - Nobutdopai",
+  "clientWindowTitle": "PokeAlliance",
   "online": true
 }

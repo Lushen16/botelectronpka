@@ -1,0 +1,65 @@
+{
+ "file": "snapshot-17748-2026-11-11T1411.jsonl",
+ "maxAgeMs": 600,
+ "totalFramesInLure": 24011,
+ "episodes": 1576,
+ "totals": {
+  "A_decisions": {
+   "source": "sequencia de luring.holding (o sinal que a regra usa)",
+   "filter": "mode=dynamic, !paused",
+   "episodeBoundary": "gap > 600 ms entre publicacoes",
+   "transitions": 325,
+   "stopToMove": 170,
+   "moveToStop": 155,
+   "runsClosedByTransition": 326,
+   "note": "runs.length inclui o run aberto no fim; por isso pode diferir de +1"
+  },
+  "B_phases": {
+   "source": "sequencia de luring.phase (usada na analise de minCount)",
+   "filter": "mode=dynamic, !paused",
+   "episodeBoundary": "gap > 600 ms",
+   "transitions": 329,
+   "entriesToStop": 155,
+   "exitsFromStop": 170,
+   "sum": 325,
+   "note": "entradas+saidas < total porque ha transicoes stop->stop de fase diferente (arc->stationary) que nao contam como entrada nem saida"
+  }
+ },
+ "minCountAudit": {
+  "entryTransitions": 155,
+  "entryCrossedThreshold": 13,
+  "entryStableOrOther": 142,
+  "exitTransitions": 170,
+  "exitCrossedDown": 2,
+  "exitAtOrAbove": 59,
+  "exitBelow": 111,
+  "correlationCountVsDuration": -0.116,
+  "conclusion": "count cruza o limiar em alguns casos: verificar"
+ },
+ "duration": {
+  "method": "t(primeiro false depois) - t(primeiro true), dentro do episodio",
+  "lowerBoundMethod": "t(ultimo true) - t(primeiro true)",
+  "runs": 179,
+  "complete": 170,
+  "incomplete": 9,
+  "observed": {
+   "n": 170,
+   "median": 172,
+   "p90": 656,
+   "max": 2250
+  },
+  "lowerBound": {
+   "n": 170,
+   "median": 31,
+   "p90": 468,
+   "max": 2172
+  },
+  "samplesPerRun": {
+   "n": 179,
+   "median": 2,
+   "p90": 5,
+   "max": 19
+  },
+  "note": "duracao real esta em [lowerBound, observed]; acima de observed so se o estado persistir apos a ultima amostra true"
+ }
+}

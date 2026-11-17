@@ -13,7 +13,7 @@
     ],
     "profile": "Default",
     "formFields": 3,
-    "body": "PKA TOOLS\nAGUARDANDO\nSCRIPTS\nTARGETING\nHEALER\nWALKER\nCAPTURE\nALERTAS\nHOENN\nTOOLS\nScripts\n\nBiblioteca de scripts e macros\n\nPerfil:\nDefault\nSalvo\nSimulação desligada\nContinuar\nModo desempenho\nAguardando cliente\nReconstrução parcial: perfis locais disponíveis. A automação no jogo está desativada nesta versão.\n×\nDetalhes do Script\nNome do Script\nIntervalo (ms)\nCódigo Lua\nSalvar\nLimpar\nScripts Salvos\n\nExecução Lua descontinuada. Sua biblioteca pode ser consultada, editada e exportada com o perfil.\n\nPKA Tools · 3.1.9 / reconstrucao local"
+    "body": "PKA TOOLS\nAGUARDANDO\nSCRIPTS\nTARGETING\nHEALER\nWALKER\nCAPTURE\nALERTAS\nHOENN\nTOOLS\nScripts\n\nBiblioteca de scripts e macros\n\nPerfil:\nDefault\nSalvo\nContinuar\nModo desempenho\nAguardando cliente\nReconstrução parcial: perfis locais disponíveis. A automação no jogo está desativada nesta versão.\n×\nDetalhes do Script\nNome do Script\nIntervalo (ms)\nCódigo Lua\nSalvar\nLimpar\nScripts Salvos\n\nExecução Lua descontinuada. Sua biblioteca pode ser consultada, editada e exportada com o perfil.\n\nPKA Tools · 3.3.1 / reconstrucao local"
   },
   "checks": {
     "tabs": [
@@ -35,7 +35,7 @@
       {
         "name": "Walker",
         "fields": 17,
-        "text": 1395
+        "text": 1430
       },
       {
         "name": "CAPTURE",
@@ -50,12 +50,12 @@
       {
         "name": "Hoenn",
         "fields": 36,
-        "text": 1982
+        "text": 1977
       },
       {
         "name": "Tools",
         "fields": 14,
-        "text": 486
+        "text": 909
       }
     ],
     "profileCreation": true,

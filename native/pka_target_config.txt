@@ -1,0 +1,3 @@
+module=msftedit.dll
+rva=1dbdd
+max=20000

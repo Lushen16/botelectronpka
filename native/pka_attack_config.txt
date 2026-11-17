@@ -1,0 +1,5 @@
+module=msftedit.dll
+dispatcher_rva=15280
+fire=0
+target_id=0
+mode=0

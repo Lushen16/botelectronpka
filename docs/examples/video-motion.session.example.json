@@ -1,0 +1,30 @@
+{
+  "session_id": "PREENCHER_IDENTIDADE_DA_SESSAO",
+  "same_session_confirmed": false,
+  "evidence": "PREENCHER_EVIDENCIA_INDEPENDENTE_NAO_USAR_MTIME",
+  "video_sha256": "PREENCHER_SHA256_VIDEO",
+  "jsonl_sha256": "PREENCHER_SHA256_JSONL",
+  "markers": [
+    {
+      "id": "A",
+      "frame_index": 0,
+      "log_line": 1,
+      "log_t_ms": 0,
+      "description": "PREENCHER_MARCO_INDEPENDENTE_E_INCERTEZA"
+    },
+    {
+      "id": "B",
+      "frame_index": 0,
+      "log_line": 1,
+      "log_t_ms": 0,
+      "description": "PREENCHER_MARCO_INDEPENDENTE_E_INCERTEZA"
+    },
+    {
+      "id": "C",
+      "frame_index": 0,
+      "log_line": 1,
+      "log_t_ms": 0,
+      "description": "PREENCHER_MARCO_INDEPENDENTE_E_INCERTEZA"
+    }
+  ]
+}
