@@ -37,6 +37,12 @@ class EngineRuntime extends EventEmitter {
     this.config = null;
     this.capabilityBlock = null;
     this.interruptState = null;
+    this.interruption = null;
+    this.stopOutcome = null;
+    this.stopPromise = null;
+    this.stopPromiseEpoch = null;
+    /* Episodio de parada: renovado em cada retomada explicita (R3). */
+    this.stopEpoch = 0;
   }
 
   get sessions() {
@@ -80,8 +86,7 @@ class EngineRuntime extends EventEmitter {
     const compatibility = this.compatibility(requested, config);
     if (compatibility.ok) return { modules: [...requested], compatibility, blocked: [], refused: false };
     const blocked = [...new Set(compatibility.missing.map(entry => entry.module))];
-    /* MUTACAO: remove so' os modulos incompatíveis e sobe o resto. */
-    return { modules: requested.filter(m => !blocked.includes(m)), compatibility, blocked, refused: false };
+    return { modules: [], compatibility, blocked, refused: true };
   }
 
   get state() {
@@ -92,7 +97,11 @@ class EngineRuntime extends EventEmitter {
     return { modules: [...this.modules], pid: this.pid, paused: this.paused, phase,
       phases: {}, status: this.last?.status || 'idle', reason: this.last?.reason || null,
       error: this.last?.error || null, missing: this.last?.missing || null,
-      interrupt: this.interruptState, capture: { ...this.capture.last } };
+      interrupt: this.interruptState,
+      /* Registro separado do motivo original: pausa local, ACK do stop e
+       * efeito observado sao coisas diferentes. */
+      interruption: this.interruption || null,
+      capture: { ...this.capture.last } };
   }
 
   async bounded(operation, label) {
@@ -110,7 +119,9 @@ class EngineRuntime extends EventEmitter {
     this.paused = true;
     this.epoch++;
     this.stopTimer();
-    this.last = { status: 'error', error: error.message, emitted: [] };
+    this.last = { status: 'error', error: error.message, emitted: [],
+      /* Preserva o resultado da parada, quando houve tentativa. */
+      interruption: this.interruption || null };
     const adapter = this.adapter;
     this.adapter = null;
     Promise.resolve().then(() => adapter?.close()).catch(() => {});
@@ -180,7 +191,10 @@ class EngineRuntime extends EventEmitter {
       this.emit('change', this.state);
       return this.state;
     }
+    /* Nova automacao autorizada explicitamente: abre um episodio de parada
+     * novo. Nao e' retomada automatica — e' uma solicitacao. */
     this.capabilityBlock = null;
+    this.beginStopEpisode();
     this.modules = resolved.modules;
     this.paused = false;
     this.last = null;
@@ -202,30 +216,148 @@ class EngineRuntime extends EventEmitter {
     return this.declaration().commands.includes(capabilities.INTERRUPT_COMMAND);
   }
 
+  /* Abre um EPISODIO de parada novo.
+   *
+   * Um episodio comeca quando a automacao e' autorizada: `setModules` com
+   * sucesso ou `togglePause` aceito. Enquanto ele dura, `pause`, o catch do
+   * `runTick` e `close` compartilham UMA tentativa de `stop`.
+   *
+   * BUG CORRIGIDO (R3): `togglePause` nao renovava o episodio. Depois de
+   * pausar -> retomar -> novas acoes, a segunda pausa encontrava
+   * `stopOutcome` do episodio anterior e reutilizava o ACK antigo SEM enviar
+   * `stop`. O `stopEpoch` invalida qualquer promessa antiga em voo, para que
+   * ela nao sobrescreva o registro do episodio novo. */
+  beginStopEpisode() {
+    this.stopEpoch = (this.stopEpoch || 0) + 1;
+    this.stopOutcome = null;
+    this.interruption = null;
+    this.interruptState = null;
+    return this.stopEpoch;
+  }
+
+  /* Uma UNICA tentativa de parada por episodio.
+   *
+   * Single-flight: `tick` (retirada de capacidade), `pause`, o catch do
+   * `runTick` e `close` podem pedir parada no mesmo instante. Todos
+   * compartilham a mesma promessa em vez de mandarem dois `stop` — desde que
+   * pertencam ao MESMO episodio. Uma promessa de episodio antigo nunca e'
+   * reaproveitada para interromper acoes novas. */
+  requestStop(reason) {
+    if (!this.adapter) return Promise.resolve(this.stopOutcome || null);
+    if (this.stopPromise && this.stopPromiseEpoch === this.stopEpoch) return this.stopPromise;
+    if (this.stopOutcome) return Promise.resolve(this.stopOutcome);
+    const epoch = this.stopEpoch;
+    const promise = this.performStop(reason, epoch)
+      .finally(() => {
+        if (this.stopPromise === promise) {
+          this.stopPromise = null;
+          this.stopPromiseEpoch = null;
+        }
+      });
+    this.stopPromise = promise;
+    this.stopPromiseEpoch = epoch;
+    return promise;
+  }
+
+  /* Executa a tentativa. Nunca lanca: o resultado vai para o registro, que
+   * separa quatro coisas distintas:
+   *
+   *   localPaused     - os despachos locais pararam (sempre true aqui);
+   *   stop === 'acked'- o ACK do `stop` voltou positivo. NAO e' prova de
+   *                     parada fisica no jogo: e' "comando entregue";
+   *   stop === 'no-stop' / 'absent-before-send'
+   *                   - nao havia `stop` para enviar: nao confirmado;
+   *   stop === 'rejected' / 'timeout'
+   *                   - tentamos e falhou: nao confirmado, com a causa.
+   */
+  async performStop(reason, epoch = this.stopEpoch) {
+    const record = {
+      reason,
+      epoch,
+      attemptedAt: this.now(),
+      localPaused: this.paused === true,
+      stop: 'not-attempted',
+      stopAckAt: null,
+      stopError: null,
+      /* ACK de `stop` diz "entregue ao executor", nunca "parou no jogo". */
+      physicalProof: false,
+    };
+    const finish = (state, error) => {
+      record.stopError = error || null;
+      this.moving = false;
+      this.engaged = false;
+      /* Guarda de epoca: a promessa de um episodio anterior nao escreve no
+       * registro do episodio atual. */
+      if (epoch === this.stopEpoch) {
+        this.interruptState = state;
+        this.stopOutcome = record;
+        this.interruption = record;
+      }
+      return record;
+    };
+
+    if (!this.canInterrupt()) {
+      return finish('unconfirmed-no-stop',
+        'Capacidade `stop` nao declarada; parada nao confirmada.');
+    }
+    /* Rechecagem imediatamente antes do envio: a declaracao pode ter mudado
+     * entre a decisao e este ponto. */
+    if (!this.canInterrupt()) {
+      return finish('unconfirmed-no-stop',
+        'Capacidade `stop` desapareceu antes do envio; parada nao confirmada.');
+    }
+    try {
+      /* Uma unica tentativa, com prazo limitado por `bounded`. */
+      const ack = await this.bounded(
+        () => this.adapter.pauseWalker(true, { pid: this.pid }), 'stop');
+      if (ack !== true) throw Error('stop sem ACK positivo.');
+      record.stop = 'acked';
+      record.stopAckAt = this.now();
+      return finish('confirmed', null);
+    } catch (error) {
+      record.stop = /Timeout/.test(error.message) ? 'timeout' : 'rejected';
+      return finish('unconfirmed-error', error.message);
+    }
+  }
+
+  /* Interrupcao por retirada de capacidade. Marca o bloqueio, INVALIDA o ciclo
+   * em curso (epoch++ faz o laco de despacho do `runTick` parar na proxima
+   * verificacao), tenta a parada e PRESERVA o motivo original. */
+  async handleCapabilityLoss(missing) {
+    this.paused = true;
+    this.epoch++;
+    this.stopTimer();
+    this.capabilityBlock = { at: this.now(), missing, declaration: this.declaration() };
+    /* Motivo original fixado ANTES da tentativa de parada: o resultado do
+     * `stop` nunca o substitui. */
+    this.last = { status: 'blocked', reason: 'capability-lost', emitted: [],
+      error: 'Execucao interrompida: capacidade retirada durante a sessao. '
+        + capabilities.describeMissing(missing),
+      missing };
+    this.emit('change', this.state);
+    const interruption = await this.requestStop('capability-lost');
+    this.last.interruption = interruption;
+    this.emit('change', this.state);
+    return this.last;
+  }
+
   async pause() {
+    /* `wasActive` sozinho pulava a parada quando algo ja tinha marcado
+     * `paused` (ex.: o ramo capability-lost). `pending` cobre esse caso: se
+     * havia movimento/combate entregue, ainda precisamos interromper. */
     const wasActive = !this.paused;
+    const pending = this.moving || this.engaged;
     this.paused = true;
     this.epoch++;
     this.stopTimer();
     await this.inFlight;
-    if (wasActive && this.adapter) {
-      if (!this.canInterrupt()) {
-        /* Servidor sem `stop`: encerramos os despachos localmente e NAO
-         * declaramos parada confirmada. Ver `interruptState`. */
-        this.moving = false;
-        this.engaged = false;
-        this.interruptState = 'unconfirmed-no-stop';
-        this.emit('change', this.state);
-        return this.state;
-      }
-      try {
-        if (await this.bounded(() => this.adapter.pauseWalker(true, { pid: this.pid }), 'stop') !== true) {
-          throw Error('Pausa sem confirmacao do runtime.');
-        }
-        this.moving = false;
-        this.engaged = false;
-        this.interruptState = 'confirmed';
-      } catch (error) {
+    if (this.adapter && (wasActive || pending)) {
+      const record = await this.requestStop('pause');
+      if (record && record.stop !== 'acked' && record.stop !== 'no-stop'
+          && record.stop !== 'absent-before-send' && record.stop !== 'not-attempted') {
+        /* Erro/timeout na pausa explicita: mantem o contrato anterior —
+         * diagnostico preservado, execucao encerrada. */
+        const error = Error('Pausa sem confirmacao do runtime: ' + record.stopError);
         this.fault(error);
         throw error;
       }
@@ -237,17 +369,39 @@ class EngineRuntime extends EventEmitter {
   async togglePause() {
     if (!this.paused) return this.pause();
     if (!this.modules.length || !this.adapter) throw Error('Ative um motor conectado antes de continuar.');
-    /* Nao retoma sozinho depois de uma retirada de capacidade: exige uma nova
-     * solicitacao explicita de modulos, que revalida tudo. */
-    if (this.capabilityBlock || this.interruptState === 'unconfirmed-no-stop') {
+    /* Nao retoma depois de uma retirada de capacidade, mesmo que ela volte:
+     * exige nova solicitacao explicita de modulos, que revalida tudo. */
+    if (this.capabilityBlock) {
       throw Error('Ativacao recusada por capacidade ausente; reative o modulo para revalidar.');
     }
+    /* Nao retoma com uma parada ainda em voo: a acao que ela interrompe pode
+     * terminar depois da retomada, e o novo movimento nasceria sem `stop`. */
+    if (this.stopPromise && this.stopPromiseEpoch === this.stopEpoch) {
+      throw Error('Retomada recusada: parada ainda pendente.');
+    }
+    /* Revalida ANTES de retomar (R3): a configuracao e as capacidades podem ter
+     * mudado enquanto estava pausado. Falhar aqui deixa tudo como esta. */
+    const compatibility = this.compatibility(this.modules, this.config);
+    if (!compatibility.ok) {
+      this.capabilityBlock = { at: this.now(), blocked: [...new Set(compatibility.missing.map(entry => entry.module))],
+        missing: compatibility.missing, declaration: compatibility.declaration };
+      this.last = { status: 'blocked', reason: 'capability-missing', emitted: [],
+        error: 'Retomada recusada: capacidade ausente. '
+          + capabilities.describeMissing(compatibility.missing),
+        missing: compatibility.missing };
+      this.emit('change', this.state);
+      throw Error(this.last.error);
+    }
+    /* Retomada aceita = episodio de parada NOVO. Sem isto, a proxima pausa
+     * reutilizaria o ACK do episodio anterior sem enviar `stop` (bug R3). */
+    this.beginStopEpisode();
     this.paused = false;
     this.last = null;
     if (this.automatic) {
       this.timer = setInterval(() => { void this.tick(); }, this.intervalMs);
       this.timer.unref?.();
     }
+    this.emit('change', this.state);
     return this.state;
   }
 
@@ -267,19 +421,11 @@ class EngineRuntime extends EventEmitter {
     /* Revalida ANTES de deixar o motor avancar estado (R1.4). Se a capacidade
      * sumiu durante a execucao, paramos aqui: `automation.tick` nao roda,
      * nenhum motor consome cooldown nem avanca `comboIndex`, e nao sai
-     * comando. Nao tenta parada sem `stop`; nao retoma sozinho depois. */
+     * comando. R2: tambem INTERROMPE uma acao ja entregue, com uma unica
+     * tentativa de `stop` quando ele continua disponivel. */
     if (!this.canInterrupt() || !this.compatibility(this.modules, this.config).ok) {
       const missing = this.compatibility(this.modules, this.config).missing;
-      this.paused = true;
-      this.stopTimer();
-      this.capabilityBlock = { at: this.now(), missing, declaration: this.declaration() };
-      this.interruptState = this.canInterrupt() ? 'blocked-by-capability' : 'unconfirmed-no-stop';
-      this.last = { status: 'blocked', reason: 'capability-lost', emitted: [],
-        error: 'Execucao interrompida: capacidade retirada durante a sessao. '
-          + capabilities.describeMissing(missing),
-        missing };
-      this.emit('change', this.state);
-      return this.last;
+      return this.handleCapabilityLoss(missing);
     }
     const epoch = this.epoch;
     this.inFlight = this.runTick(epoch);
@@ -402,11 +548,12 @@ class EngineRuntime extends EventEmitter {
       return result;
     } catch (error) {
       if ((this.moving || this.engaged) && this.adapter) {
-        const adapter = this.adapter;
-        try { await this.bounded(() => adapter.pauseWalker(true, { pid: this.pid }), 'stop-after-error'); }
-        catch (stopError) { error = Error(error.message + ' Parada pendente: ' + stopError.message); }
-        this.moving = false;
-        this.engaged = false;
+        /* Mesmo caminho de parada: single-flight com `pause`/`tick`. */
+        const record = await this.requestStop('error');
+        if (record && record.stopError && record.stop !== 'acked'
+            && record.stop !== 'no-stop' && record.stop !== 'absent-before-send') {
+          error = Error(error.message + ' Parada pendente: ' + record.stopError);
+        }
       }
       this.fault(error);
       return this.last;
@@ -415,6 +562,9 @@ class EngineRuntime extends EventEmitter {
 
   async close() {
     try { await this.pause(); } finally {
+      /* Se a pausa pulou a parada (ja estava pausado e sem pendencia), ainda
+       * tentamos uma vez antes de fechar o canal — nunca duas. */
+      if (this.adapter) await this.requestStop('close');
       this.connection?.abort();
       await this.adapter?.close();
       this.adapter = null;

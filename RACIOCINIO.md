@@ -331,3 +331,294 @@ política segue como estava e simplesmente não roda quando recusada.
 **Pendente:** compilar `pka_native.dll` (artefato desta rodada foi gerado em
 diretório temporário apenas para provar que o C compila; o binário em uso não
 foi substituído); B.1 (chave do canal); validação real no jogo.
+
+---
+
+## G04-R1 — Fechar lacunas da revisao (2026-11-17)
+
+**Cinco correcoes sobre o patch G04, todas vindas da revisao da coordenacao.**
+
+### 1. `stop` entrou no contrato operacional
+
+`pauseWalker()` sempre manda `stop`; sem ele o runtime nao consegue conter o
+que iniciou — nem movimento nem combate. `INTERRUPT_COMMAND = 'stop'` agora e'
+requisito de `target` e de `walker`. Requisito ausente = ativacao recusada:
+um servidor que declara `walk` sem `stop` nunca comeca a andar.
+
+`pause()` quando `stop` nao existe: encerra os despachos localmente e registra
+`interruptState = 'unconfirmed-no-stop'`. **Nao declara parada confirmada.**
+
+### 2. Partida conjunta nao vira execucao parcial
+
+`resolveModules()` agora devolve `refused: true` e `modules: []` quando
+qualquer modulo pedido e' incompativel. Antes eu filtrava os compativeis e
+subia o resto — era exatamente a "execucao parcial automatica" que a revisao
+proibiu. Walker isolado compativel continua subindo, porque a solicitacao e'
+so' ele. A config do usuario nao e' tocada e o motivo fica em `state.error`.
+
+### 3. Requisitos refletem o caminho efetivo
+
+Reescritos contra os emissores reais:
+
+| caminho | evidencia | requisito |
+| :--- | :--- | :--- |
+| ataque | `target-engine.cjs:407` | `attack` + `stop` |
+| healSkill / lureSkill / PokeStop / combo enumerado | `:274-285`, `:426-432`, `:535`, `:585` | `talk` |
+| combo nativo com hotkey | `:437-455` | `hotkey` |
+| combo nativo sem hotkey | `:544-551` | `combo` |
+| rotacao de skills | `:411-414` | `hotkey` |
+| autoRevive | `automation.cjs:138` | `hotkey` (**nunca** `revive`) |
+| potion / medicine | `healer-engine.cjs:52-63` | canal exato de `itemChannel()` |
+| cura / reset | `:114-127` | `talk` |
+| retorno ao Pokemon | `:137-148` | `switchPokemon` |
+| captura | `engine-runtime` beforeActions | `useWith` |
+
+**Canal de item sem fallback:** `hotkeyChannel()` usa a hotkey quando existe e
+so' cai em `action` quando ela esta' vazia. O requisito `mode:'any'` foi
+removido — aceitar "qualquer um dos dois" permitiria `action` num servidor que
+so' tem `action`, e o motor com hotkey configurada falharia em tempo de
+execucao. Agora o requisito e' o canal que o motor realmente vai usar.
+
+**`normalizeLuring` reutilizado.** A copia local (com `maxDistance` 1..30,
+enquanto o lure-engine usa 1..16) foi apagada. `capabilities.cjs` importa a
+funcao do lure-engine. Ha teste comparando o modo com config fora do limite.
+
+**Captura exige `useWith`, que a nossa DLL nao implementa** — entao
+`captureEnabled: true` e' recusado na partida em vez de falhar no meio.
+
+### 4. Capacidade retirada durante a sessao
+
+`tick()` revalida **antes** de chamar `automation.tick`. Se `stop` sumiu ou
+qualquer requisito caiu: nenhum motor avanca `comboIndex`, nenhum cooldown e'
+consumido, nenhum comando sai. `interruptState` registra
+`blocked-by-capability` ou `unconfirmed-no-stop`. `togglePause()` recusa
+retomar ("reative o modulo para revalidar") — nao ha retomada automatica
+quando a capacidade reaparece.
+
+### 5. Sem validade implicita para `supportedCommands`
+
+`engine-runtime.declaration()` so' le `adapter.capabilities()`. Um adaptador
+que expose apenas `supportedCommands` e' tratado como **sem declaracao**, que
+nao habilita nada. Fixtures foram atualizadas para declarar
+`{contract, version, server, commands}` explicitamente, inclusive
+`tests/capture_runtime.test.cjs`, cuja fixture declara `useWith` com comentario
+dizendo que e' escolha do fixture e que a DLL nao o implementa.
+
+### 6. Declaracao e diagnostico
+
+`parseDeclaration` separa tres coisas que antes se confundiam:
+
+- `commands` — nomes que o **encoder** conhece (nao a lista da nossa DLL:
+  um outro servidor pode legitimamente declarar `chase`);
+- `unrecognised` — nomes que o encoder nao conhece; nao habilitam nada;
+- `server`/`serverValid` — **informativos**. Nome ausente e' aceito e marcado;
+  nome presente **nao** autentica o binario nem prova efeito no jogo.
+
+`revive` e' conhecido pelo encoder mas rejeitado sempre
+(`protocol.cjs:108`). Ele sai de `ENCODER_COMMANDS` e a prova e' um teste
+contra `encodeCommand`, nao contra uma lista nossa.
+
+`statusMessage` preserva o codigo bruto; `protocol.cjs:STATUS` continua
+intacto.
+
+### Prova
+
+`tests/capabilities.test.cjs`: 29 testes. `tests/engine_runtime.test.cjs`: 34.
+Total focalizado: **184 testes, 183 passam, 1 skip** (transporte live exige o
+jogo).
+
+Mutacao obrigatoria — `resolveModules` voltando a remover so' os modulos
+incompativeis:
+
+```
+not ok 9  - dynamic lure is refused before any automation command is sent
+not ok 12 - a batch with an incompatible command sends nothing at all
+not ok 16 - a server declaring walk but not stop cannot start movement
+not ok 17 - a joint request with one incompatible module starts nothing
+not ok 18 - the walker requested alone still starts after the joint refusal
+not ok 25 - an adapter exposing only supportedCommands gets no implicit validity
+```
+
+O teste 17 e' a protecao contra partida parcial pedida explicitamente.
+
+### Limites
+
+- Regroup **nao** implementado (fora de escopo, por decisao da coordenacao).
+- Validacao no jogo: nenhuma. Tudo e' fixture e simulacao.
+- `native/pka_native.dll` **nao foi substituida**: o artefato desta rodada
+  (`pka_native_g04r1.dll`) foi compilado em diretorio temporario apenas para
+  provar que a fonte compila. A DLL em uso continua a de 14/11, que **nao
+  declara capacidades** — ate o deploy, o adapter ve `absent` e recusa tudo.
+- B.1 (chave do canal) continua pendente: sem ela o caminho nativo nem e'
+  selecionado.
+
+---
+
+## G04-R2 — Interromper acoes apos retirada de capacidade (2026-11-17)
+
+**Defeito conferido.** O ramo `capability-lost` de `EngineRuntime.tick()` marcava
+`paused = true`, encerrava o timer e impedia o motor de avancar — mas **nao
+enviava `stop`**. Uma acao ja entregue (`attack`, `walk`) continuava no jogo.
+Alem disso, chamar `pause()` em seguida pulava a parada por
+`wasActive = !this.paused === false`.
+
+### Correcao
+
+**`requestStop(reason)` — single-flight.** `tick` (retirada), `pause`, o catch
+do `runTick` e `close` compartilham a mesma promessa. Uma unica tentativa por
+episodio; depois dela, `stopOutcome` so' e' relido. Sem duas paradas
+concorrentes.
+
+**Uma tentativa com prazo limitado**, via `bounded()` (`timeoutMs`, 1500 ms por
+padrao). Nunca lanca: o resultado vai para o registro.
+
+**`handleCapabilityLoss(missing)`** centraliza a retirada: marca o bloqueio,
+faz `epoch++` (o laco de despacho para na proxima verificacao), encerra o
+timer, fixa o **motivo original** em `last`, e so' entao tenta a parada. O
+resultado do `stop` entra em `last.interruption` — **nunca substitui** o motivo.
+
+**`pause()`** passou a considerar `pending = this.moving || this.engaged`, alem
+de `wasActive`. Era o furo do `wasActive`: se algo ja tinha marcado `paused`,
+a acao entregue ficava sem interrupcao.
+
+**`close()`** tenta uma parada pelo mesmo caminho antes de fechar o canal —
+sem duplicar a de `pause`.
+
+### Registro separado, como pedido
+
+`interruption` distingue quatro coisas que nao sao a mesma:
+
+| campo | significado |
+| :--- | :--- |
+| `localPaused` | os despachos locais pararam |
+| `stop: 'acked'` | o `stop` foi **entregue** (ACK positivo) |
+| `stop: 'no-stop'` / `'absent-before-send'` | nao havia `stop` para enviar |
+| `stop: 'rejected'` / `'timeout'` | tentamos e falhou, com `stopError` |
+
+`physicalProof` e' **sempre `false`** e esta documentado: ACK do `stop` diz
+"comando entregue ao executor", nunca "parou no jogo". Nao ha medicao de
+posicao aqui.
+
+`interruptState` acompanha: `confirmed`, `unconfirmed-no-stop`,
+`unconfirmed-error`.
+
+### Retomada
+
+`togglePause()` recusa retomar enquanto `capabilityBlock` existir. A capacidade
+reaparecer **nao** retoma nada: o runtime continua pausado ate' uma nova
+solicitacao explicita de modulos, que revalida tudo. `setModules` com sucesso e'
+o unico caminho que zera o episodio.
+
+### Prova
+
+8 testes novos em `tests/engine_runtime.test.cjs` (34 -> 42). Os seis exigidos:
+
+| exigencia | teste |
+| :--- | :--- |
+| ataque entregue + `attack` retirado + `stop` disponivel | "an attack already dispatched is interrupted once when attack is withdrawn" |
+| movimento entregue | "movement already dispatched is interrupted once..." |
+| `stop` ausente | "without stop nothing impossible is sent and the stop stays unconfirmed" |
+| `stop` rejeitado / timeout | "a rejected stop keeps both causes..." / "a stop timeout also preserves both causes" |
+| capacidade restaurada permanece pausado | "a restored capability leaves the runtime paused" |
+| chamadas concorrentes nao duplicam | "concurrent pause and capability loss do not duplicate the stop" / "close after a capability loss does not send a second stop" |
+
+Mutacao obrigatoria — retirar o despacho de `stop` do ramo de retirada:
+
+```
+not ok 35 - an attack already dispatched is interrupted once when attack is withdrawn
+not ok 36 - movement already dispatched is interrupted once when a required capability is withdrawn
+not ok 37 - without stop nothing impossible is sent and the stop stays unconfirmed
+not ok 38 - a rejected stop keeps both causes: capability loss and stop failure
+not ok 39 - a stop timeout also preserves both causes
+not ok 42 - close after a capability loss does not send a second stop
+# tests 42 / pass 36 / fail 6
+```
+
+Restaurado: 42/42.
+
+### Limites
+
+- **Nenhum efeito fisico foi medido.** `physicalProof: false` em todos os
+  caminhos; nao ha leitura de posicao para confirmar que o personagem parou.
+- **Uma tentativa, nao retentativa.** Se o `stop` falhar, o registro guarda a
+  causa e a execucao fica encerrada — nao ha segunda tentativa no mesmo
+  episodio, por decisao explicita.
+- Politica do lure, protocolo e DLL intocados.
+
+---
+
+## G04-R3 — Renovar o episodio de parada apos retomada explicita (2026-11-17)
+
+**Bug conferido.** `togglePause()` nao renovava o episodio de parada. Sequencia
+real: pausar -> retomar -> novas acoes -> pausar de novo. A segunda pausa
+encontrava `stopOutcome` do episodio ANTERIOR em `requestStop()` e devolvia o
+ACK antigo **sem enviar `stop`**. O movimento novo ficava sem interrupcao.
+
+**Correcao — episodio como cidadao de primeira classe.**
+
+`beginStopEpisode()` incrementa `stopEpoch`, zera `stopOutcome`, `interruption`
+e `interruptState`. E' chamado nos dois unicos pontos que autorizam automacao:
+
+- `setModules()` com sucesso (ja era o caso);
+- `togglePause()` aceito (**novo** — era o buraco).
+
+**Guardas adicionadas em `togglePause()`:**
+
+1. **Revalida capacidades antes de retomar.** Se a config ou o servidor mudaram
+   enquanto estava pausado, a retomada falha, grava `capabilityBlock` e nao
+   mexe em nada.
+2. **Nao retoma com parada pendente** (`stopPromiseEpoch === stopEpoch`). Sem
+   isso a acao que o `stop` ia interromper poderia terminar depois da retomada.
+
+**Promessa antiga nao sobrescreve episodio novo.** `performStop(reason, epoch)`
+recebe a epoca e so' escreve `stopOutcome`/`interruption`/`interruptState` se
+`epoch === this.stopEpoch`. Uma promessa em voo de um episodio encerrado termina
+normalmente para quem a espera, mas nao contamina o registro atual.
+
+**Deduplicacao preservada no mesmo episodio.** `requestStop()` so' reaproveita
+`stopPromise` quando a epoca bate; `stopOutcome` continua impedindo a segunda
+tentativa dentro do episodio. `pause`/`close`/`erro` continuam compartilhando
+uma unica parada.
+
+**Bloqueio apos capability-lost preservado.** `capabilityBlock` continua
+barrando `togglePause`; reaparecimento de capacidade nao autoriza retomada.
+
+**ACK != parada fisica.** `physicalProof: false` em todos os caminhos,
+inalterado.
+
+**Testes (4 novos, 42 -> 46):**
+
+| exigencia | teste |
+| :--- | :--- |
+| um stop por pausa, dois no total | "each explicit resume starts a new stop episode (one stop per pause)" |
+| retomada com stop pendente | "resume is refused while a stop is still pending" |
+| retomada com capacidade incompativel | "resume revalidates capabilities before restarting" |
+| promessa antiga nao sobrescreve | "a stale stop promise does not overwrite the new episode record" |
+
+O teste principal cobre os 5 passos pedidos: despacha movimento, pausa (1 stop),
+retoma e despacha de novo, pausa (2 stops), fecha ainda pausado (continua 2).
+
+**Mutacao obrigatoria** — remover `beginStopEpisode()` do `togglePause`:
+
+```
+not ok 43 - each explicit resume starts a new stop episode (one stop per pause)
+  error: 'segunda pausa precisa enviar stop novo'
+         1 !== 2
+# tests 46 / pass 45 / fail 1
+```
+
+Falha pelo motivo exato do bug: a segunda pausa devolveu o ACK antigo sem
+enviar `stop`. Restaurado: 46/46.
+
+**Dois defeitos de teste corrigidos no caminho** (nao eram de producao): o teste
+principal reusava telemetria estatica sem avancar `tick`/relogio, e o do
+episodio obsoleto tentava renovar via `setModules`, que pausa antes e travava
+esperando a promessa pendente. O segundo agora exercita `performStop` com epoca
+explicita, que e' o mecanismo real da guarda.
+
+### Limites
+
+- Nenhum efeito fisico medido; `physicalProof` continua `false`.
+- Uma tentativa por episodio, sem retentativa.
+- Testes vizinhos: 193 passando (capabilities, local_runtime, capture_runtime,
+  healer, transport, engines, combat_fields, hunt, hunt_daemon).

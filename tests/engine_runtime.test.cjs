@@ -552,3 +552,261 @@ test('runtime runs combo to revive with enemies visible and waits for roster con
   assert.equal(item.commands.filter(event => event.parameter === 'F9').length, 1);
   await item.runtime.close();
 });
+
+/* ============================================================================
+ * G04-R2 — interromper acoes apos retirada de capacidade
+ * ========================================================================= */
+
+/* Declaracao mutavel: os testes trocam a lista para simular retirada. */
+function capabilityFixture(commands = [...FIXTURE_DECLARATION.commands]) {
+  const item = fixture();
+  const capabilities = require('../reconstruction/capabilities.cjs');
+  let list = [...commands];
+  item.setCommands = next => {
+    list = [...next];
+    item.adapter.supportedCommands.length = 0;
+    item.adapter.supportedCommands.push(...list);
+  };
+  item.adapter.capabilities = () => capabilities.parseDeclaration({
+    contract: 'pka-capabilities', version: 1, server: 'engine-runtime-fixture', commands: list });
+  item.setCommands(list);
+  return item;
+}
+
+const WALKER_ONLY = () => ({ ...configuration(),
+  walker: { waypoints: [{ action: 'walk', pos: { x: 105, y: 100, z: 7 } }] } });
+
+test('an attack already dispatched is interrupted once when attack is withdrawn', async () => {
+  const item = capabilityFixture();
+  await item.runtime.setModules('target', true, 10, item.config);
+  await item.runtime.tick();                     // entrega attack
+  const attacks = item.commands.filter(entry => entry.name === 'attack').length;
+  assert.equal(attacks, 1, 'ataque entregue antes da retirada');
+
+  /* `attack` sai da declaracao; `stop` continua disponivel. */
+  item.setCommands([...FIXTURE_DECLARATION.commands].filter(name => name !== 'attack'));
+  const result = await item.runtime.tick();
+
+  assert.equal(result.status, 'blocked');
+  assert.equal(result.reason, 'capability-lost');
+  assert.equal(item.commands.filter(entry => entry.name === 'attack').length, attacks,
+    'nenhum ataque novo');
+  assert.equal(item.pauses.length, 1,
+    'uma parada solicitada');
+  assert.equal(result.interruption.stop, 'acked');
+  assert.equal(result.interruption.physicalProof, false,
+    'ACK do stop nao e prova de parada fisica');
+  assert.equal(result.interruption.localPaused, true);
+  assert.match(result.error, /attack/, 'motivo original preservado');
+});
+
+test('movement already dispatched is interrupted once when a required capability is withdrawn', async () => {
+  const item = capabilityFixture();
+  await item.runtime.setModules('walker', true, 10, WALKER_ONLY());
+  await item.runtime.tick();
+  assert.ok(item.commands.some(entry => entry.name === 'walk'), 'andou antes');
+
+  /* `stop` continua; `talk` sai (o Walker so' o usa com waypoint `say`, mas a
+   * retirada de `walk` e' o caso mais direto). */
+  item.setCommands([...FIXTURE_DECLARATION.commands].filter(name => name !== 'walk'));
+  const result = await item.runtime.tick();
+
+  assert.equal(result.status, 'blocked');
+  assert.equal(item.commands.filter(entry => entry.name === 'walk').length, 1,
+    'nenhum walk novo');
+  assert.equal(item.pauses.length, 1);
+  assert.equal(result.interruption.stop, 'acked');
+  assert.match(result.error, /walk/);
+});
+
+test('without stop nothing impossible is sent and the stop stays unconfirmed', async () => {
+  const item = capabilityFixture();
+  await item.runtime.setModules('target', true, 10, item.config);
+  await item.runtime.tick();
+
+  /* `stop` e `attack` saem juntos. */
+  item.setCommands(['talk', 'combo', 'switchPokemon', 'potion', 'hotkey']);
+  const result = await item.runtime.tick();
+
+  assert.equal(result.status, 'blocked');
+  assert.equal(item.pauses.length, 0,
+    'nao envia stop que o servidor nao declara');
+  assert.equal(result.interruption.stop, 'not-attempted');
+  assert.equal(result.interruption.physicalProof, false);
+  assert.equal(item.runtime.state.interrupt, 'unconfirmed-no-stop');
+});
+
+test('a rejected stop keeps both causes: capability loss and stop failure', async () => {
+  const item = capabilityFixture();
+  await item.runtime.setModules('target', true, 10, item.config);
+  await item.runtime.tick();
+  /* stop declarado mas a execucao recusa. */
+  item.adapter.pauseWalker = async () => false;
+  item.setCommands([...FIXTURE_DECLARATION.commands].filter(name => name !== 'attack'));
+  const result = await item.runtime.tick();
+
+  assert.equal(result.reason, 'capability-lost');
+  assert.match(result.error, /attack/, 'primeira causa');
+  assert.equal(result.interruption.stop, 'rejected');
+  assert.ok(result.interruption.stopError, 'segunda causa registrada');
+  assert.equal(result.interruption.physicalProof, false);
+  assert.equal(item.runtime.state.interrupt, 'unconfirmed-error');
+});
+
+test('a stop timeout also preserves both causes', async () => {
+  const item = capabilityFixture();
+  item.runtime.timeoutMs = 10;
+  await item.runtime.setModules('target', true, 10, item.config);
+  await item.runtime.tick();
+  item.adapter.pauseWalker = () => new Promise(() => {}); // nunca resolve
+  item.setCommands([...FIXTURE_DECLARATION.commands].filter(name => name !== 'attack'));
+  const result = await item.runtime.tick();
+
+  assert.match(result.error, /attack/, 'motivo original preservado');
+  assert.equal(result.interruption.stop, 'timeout');
+  assert.match(result.interruption.stopError, /Timeout/);
+});
+
+test('a restored capability leaves the runtime paused', async () => {
+  const item = capabilityFixture();
+  await item.runtime.setModules('target', true, 10, item.config);
+  await item.runtime.tick();
+  item.setCommands([...FIXTURE_DECLARATION.commands].filter(name => name !== 'attack'));
+  await item.runtime.tick();
+  assert.equal(item.runtime.state.paused, true);
+
+  /* Capacidade volta. */
+  item.setCommands([...FIXTURE_DECLARATION.commands]);
+  assert.equal(await item.runtime.tick(), null, 'nao roda o motor');
+  assert.equal(item.runtime.state.paused, true, 'continua pausado');
+  await assert.rejects(item.runtime.togglePause(), /reative o modulo/);
+});
+
+test('concurrent pause and capability loss do not duplicate the stop', async () => {
+  const item = capabilityFixture();
+  await item.runtime.setModules('target', true, 10, item.config);
+  await item.runtime.tick();
+
+  /* Conta as chamadas reais a pauseWalker: o fixture grava em `pauses`, mas
+   * aqui trocamos a funcao e contamos a invocacao, liberando a promessa. */
+  let stopCalls = 0;
+  let releaseStop;
+  item.adapter.pauseWalker = () => {
+    stopCalls += 1;
+    return new Promise(resolve => { releaseStop = resolve; });
+  };
+  item.setCommands([...FIXTURE_DECLARATION.commands].filter(name => name !== 'attack'));
+
+  const loss = item.runtime.tick();      // dispara a interrupcao
+  const pausing = item.runtime.pause();  // concorrente
+  await Promise.resolve();
+  await Promise.resolve();
+  if (releaseStop) releaseStop(true);
+  await Promise.allSettled([loss, pausing]);
+  /* Se a segunda chamada ficou pendurada, libera de novo. */
+  if (releaseStop) releaseStop(true);
+
+  assert.equal(stopCalls, 1, 'uma unica tentativa de parada');
+});
+
+test('close after a capability loss does not send a second stop', async () => {
+  const item = capabilityFixture();
+  await item.runtime.setModules('target', true, 10, item.config);
+  await item.runtime.tick();
+  item.setCommands([...FIXTURE_DECLARATION.commands].filter(name => name !== 'attack'));
+  await item.runtime.tick();
+  assert.equal(item.pauses.length, 1);
+  await item.runtime.close();
+  assert.equal(item.pauses.length, 1,
+    'close nao repete a parada');
+});
+/* ============================================================================
+ * G04-R3 — renovar o episodio de parada apos retomada explicita
+ * ========================================================================= */
+
+test('each explicit resume starts a new stop episode (one stop per pause)', async () => {
+  const item = capabilityFixture();
+  await item.runtime.setModules('walker', true, 10, WALKER_ONLY());
+
+  /* 1. despacha movimento */
+  await item.runtime.tick();
+  assert.ok(item.commands.some(entry => entry.name === 'walk'), 'movimento despachado');
+
+  /* 2. pausa: exatamente um stop */
+  await item.runtime.pause();
+  assert.equal(item.pauses.length, 1, 'primeira pausa: um stop');
+
+  /* 3. retoma explicitamente e despacha novo movimento */
+  await item.runtime.togglePause();
+  assert.equal(item.runtime.state.paused, false);
+  /* O walker exige (a) amostra de tick MAIOR e (b) cadencia minima entre
+   * passos. Avancamos relogio e telemetria como o jogo faria. */
+  item.time(11000);
+  item.sessionValue.telemetry.tick = 2;
+  item.sessionValue.telemetry.position = { x: 101, y: 100, z: 7 };
+  await item.runtime.tick();
+  const walks = item.commands.filter(entry => entry.name === 'walk').length;
+  assert.ok(walks >= 2, 'novo movimento despachado depois da retomada');
+
+  /* 4. pausa de novo: dois stops no total */
+  await item.runtime.pause();
+  assert.equal(item.pauses.length, 2, 'segunda pausa precisa enviar stop novo');
+
+  /* 5. fechar ainda pausado nao repete */
+  await item.runtime.close();
+  assert.equal(item.pauses.length, 2, 'close nao duplica a parada');
+});
+
+test('resume is refused while a stop is still pending', async () => {
+  const item = capabilityFixture();
+  await item.runtime.setModules('walker', true, 10, WALKER_ONLY());
+  await item.runtime.tick();
+
+  /* stop que nunca resolve: fica pendente. */
+  item.adapter.pauseWalker = () => new Promise(() => {});
+  item.runtime.timeoutMs = 500;
+  const pausing = item.runtime.pause();
+  await Promise.resolve();
+  await assert.rejects(item.runtime.togglePause(), /parada ainda pendente/);
+  /* A pausa vai estourar por timeout; absorvemos para nao vazar no teste. */
+  await pausing.catch(() => {});
+});
+
+test('resume revalidates capabilities before restarting', async () => {
+  const item = capabilityFixture();
+  await item.runtime.setModules('walker', true, 10, WALKER_ONLY());
+  await item.runtime.tick();
+  await item.runtime.pause();
+  assert.equal(item.pauses.length, 1);
+
+  /* Capacidade exigida some enquanto esta pausado. */
+  item.setCommands([...FIXTURE_DECLARATION.commands].filter(name => name !== 'walk'));
+  await assert.rejects(item.runtime.togglePause(), /capacidade ausente|Capacidade ausente/i);
+  assert.equal(item.runtime.state.paused, true, 'continuou pausado');
+  assert.equal(item.pauses.length, 1, 'nenhum stop extra');
+});
+
+test('a stale stop promise does not overwrite the new episode record', async () => {
+  const item = capabilityFixture();
+  await item.runtime.setModules('walker', true, 10, WALKER_ONLY());
+  await item.runtime.tick();
+
+  /* Primeira tentativa de parada fica pendente, capturada com a epoca VELHA. */
+  const oldEpoch = item.runtime.stopEpoch;
+  let releaseFirst;
+  item.adapter.pauseWalker = () => new Promise(resolve => { releaseFirst = resolve; });
+  const inFlight = item.runtime.performStop('pause', oldEpoch);
+  await Promise.resolve();
+
+  /* Um episodio NOVO comeca enquanto a promessa antiga ainda esta em voo. */
+  item.runtime.beginStopEpisode();
+  assert.notEqual(item.runtime.stopEpoch, oldEpoch);
+
+  /* A promessa antiga resolve DEPOIS. Nao pode escrever no episodio novo. */
+  releaseFirst(true);
+  const stale = await inFlight;
+  assert.equal(stale.stop, 'acked', 'a tentativa antiga terminou como acked');
+  assert.equal(item.runtime.stopOutcome, null,
+    'promessa antiga nao escreve no registro do episodio novo');
+  assert.equal(item.runtime.state.interrupt, null);
+});

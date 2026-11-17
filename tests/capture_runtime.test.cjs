@@ -5,6 +5,25 @@ const assert = require('node:assert/strict');
 const { CaptureRuntime } = require('../reconstruction/capture-runtime.cjs');
 const { EngineRuntime } = require('../reconstruction/engine-runtime.cjs');
 const { COMMANDS } = require('../reconstruction/protocol.cjs');
+const capabilities = require('../reconstruction/capabilities.cjs');
+
+/* Fixture de TRANSPORTE que declara `useWith` explicitamente.
+ *
+ * IMPORTANTE: a `pka_native.dll` NAO implementa `useWith` (tipo 14 cai em
+ * STATUS_UNSUPPORTED). Estes testes exercitam o PIPELINE de captura, nao a
+ * DLL; declarar a capacidade aqui e' uma escolha do fixture, documentada, e
+ * nao uma excecao implicita do fluxo de producao. O teste
+ * "capture requires useWith, which our server does not implement" (em
+ * tests/capabilities.test.cjs) cobre o lado do servidor real. */
+const CAPTURE_FIXTURE_DECLARATION = Object.freeze({
+  contract: 'pka-capabilities', version: 1, server: 'capture-pipeline-fixture',
+  commands: [...Object.keys(COMMANDS), 'useWith'],
+});
+
+const captureAdapter = extra => Object.assign({
+  supportedCommands: [...CAPTURE_FIXTURE_DECLARATION.commands],
+  capabilities: () => capabilities.parseDeclaration(CAPTURE_FIXTURE_DECLARATION),
+}, extra);
 
 function fixture() {
   const config = { looting: { captureEnabled: true, captureAfterCombat: true, maxCaptureDist: 4,
@@ -86,7 +105,7 @@ test('Electron native runtime pipeline dispatches useWith then returns to Walker
   const snapshot = { pid: 42, online: true, ageMs: 0, telemetry: { ...value.telemetry,
     nativeVerified: true, pulseVersion: 3, creatures: [], roster: [], healthPercent: 100 } };
   const runtime = new EngineRuntime({ automatic: false, now: () => clock,
-    openAdapter: async () => ({ supportedCommands: Object.keys(COMMANDS), getSnapshot: () => snapshot,
+    openAdapter: async () => captureAdapter({ getSnapshot: () => snapshot,
       command: async (name, parameter) => { commands.push({ name, parameter }); return true; },
       pauseWalker: async () => true, close: async () => {} }) });
   context.after(() => runtime.close());
@@ -104,7 +123,7 @@ test('Electron native runtime pipeline dispatches useWith then returns to Walker
 test('Native useWith rejection faults the runtime and is not retried', async context => {
   const value = fixture(); let calls = 0;
   const runtime = new EngineRuntime({ automatic: false, now: () => 1000,
-    openAdapter: async () => ({ supportedCommands: Object.keys(COMMANDS), getSnapshot: () => ({ pid: 42,
+    openAdapter: async () => captureAdapter({ getSnapshot: () => ({ pid: 42,
       online: true, ageMs: 0, telemetry: { ...value.telemetry, nativeVerified: true, pulseVersion: 3, creatures: [] } }),
       command: async () => { calls++; return false; }, pauseWalker: async () => true, close: async () => {} }) });
   context.after(() => runtime.close());
